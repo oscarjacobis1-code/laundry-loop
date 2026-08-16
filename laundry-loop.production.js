@@ -3,7 +3,7 @@
 
   const SESSION_KEY = 'laundry_loop_customer_session';
   window.__LAUNDRY_PRODUCTION_READY__ = true;
-  const backendReady = () => Boolean(supabase);
+  const backendReady = () => Boolean(sbClient);
   const showError = (element, message) => {
     if (!element) return;
     element.textContent = message;
@@ -32,13 +32,13 @@
 
   async function rpc(name, values) {
     if (!backendReady()) throw new Error('The order service is unavailable. Please try again shortly.');
-    const { data, error } = await supabase.rpc(name, values);
+    const { data, error } = await sbClient.rpc(name, values);
     if (error) throw error;
     return data;
   }
 
   async function loadStaffOrders() {
-    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sbClient.from('orders').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     ORDERS = (data || []).filter((row) => !['Picked Up (Archived)', 'Cancelled/Refunded'].includes(row.status)).map(mapOrder);
     ARCHIVED_ORDERS = (data || []).filter((row) => ['Picked Up (Archived)', 'Cancelled/Refunded'].includes(row.status)).map(mapOrder);
@@ -213,11 +213,11 @@
     const errorBox = document.getElementById('staff-login-error');
     errorBox.classList.add('hidden');
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await sbClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      const { data: profile, error: profileError } = await supabase.from('staff_profiles').select('role').single();
+      const { data: profile, error: profileError } = await sbClient.from('staff_profiles').select('role').single();
       if (profileError || !profile) {
-        await supabase.auth.signOut();
+        await sbClient.auth.signOut();
         throw new Error('This account is not authorized for staff access.');
       }
       IS_STAFF_LOGGED_IN = true;
@@ -231,12 +231,12 @@
 
   staffLogOut = async function () {
     IS_STAFF_LOGGED_IN = false;
-    await supabase.auth.signOut();
+    await sbClient.auth.signOut();
     goHome();
   };
 
   async function patchOrder(code, values) {
-    const { error } = await supabase.from('orders').update(values).eq('tracking_code', code);
+    const { error } = await sbClient.from('orders').update(values).eq('tracking_code', code);
     if (error) throw error;
     await loadStaffOrders();
   }
