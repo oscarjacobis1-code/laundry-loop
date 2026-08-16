@@ -977,15 +977,15 @@
   const SUPABASE_URL = "https://coohutrnqcxjhkxprama.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvb2h1dHJucWN4amhreHByYW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDk0ODAsImV4cCI6MjEwMjAyNTQ4MH0.Sj3d-L_s7DNEaiBRe2MiVE9IdEgmPal5yoiWNWObyNE";
 
-  let supabase = null;
+  let sbClient = null;
   if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     testConnection();
   }
 
   async function testConnection() {
-    if(!supabase) return;
-    const { data, error } = await supabase.rpc('laundry_loop_health');
+    if(!sbClient) return;
+    const { data, error } = await sbClient.rpc('laundry_loop_health');
     if (error) {
       console.error('❌ Supabase Error:', error.message);
     } else {
