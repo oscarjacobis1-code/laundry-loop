@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Laundry Loop | Full-Service Laundry</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  :root {
+    --primary: #071D59;
+    --accent: #1177C8;
+    --ink: #102451;
+    --sub: #53627A;
+    --faint: #8490A3;
+    --paper: #F7FAFD;
+    --surface: #FFFFFF;
+    --line: #DCE5F0;
+    --radius: 2px;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Outfit', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  body.admin-portal header,
+  body.admin-portal footer { display: none !important; }
+  body.admin-portal main { min-height: 100vh; }
+  body.admin-portal #view-staff { padding-top: 48px; padding-bottom: 48px; }
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .font-mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    border-radius: var(--radius);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 10px 18px;
+    border: 1px solid transparent;
+    letter-spacing: 0.01em;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--primary);
+    color: #FAFAF9;
+    border-color: var(--primary);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #0A2A73;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #FAFAF9;
+    border-color: var(--accent);
+  }
+  .btn-accent:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .btn-outline {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn-outline:hover:not(:disabled) {
+    border-color: var(--ink);
+    background: rgba(17, 119, 200, 0.05);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--sub);
+    border-color: transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--ink);
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .field {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    width: 100%;
+    font-size: 14px;
+    padding: 10px 14px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field:focus {
+    border-color: var(--primary);
+  }
+  label.field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 1px;
+    border: 1px solid transparent;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .chip-received { background: #F1F5FB; color: #53627A; border-color: #DCE5F0; }
+  .chip-washing  { background: #EAF4FC; color: #0B5E9D; border-color: #C9E4F7; }
+  .chip-drying   { background: #EDF2FF; color: #294E9B; border-color: #D6E1FA; }
+  .chip-ready    { background: #E7F5FF; color: #075985; border-color: #BAE3F8; }
+  .chip-paid     { background: #EAF4FC; color: #0B5E9D; border-color: #C9E4F7; }
+  .chip-pendingpay { background: #EDF2FF; color: #294E9B; border-color: #D6E1FA; }
+  .chip-pickup   { background: #F1F5FB; color: #53627A; border-color: #DCE5F0; }
+  .chip-archived { background: #F1F5FB; color: #6B7890; border-color: #DCE5F0; }
+  .chip-cancelled { background: #FEE2E2; color: #991B1B; border-color: #FECACA; }
+
+  .ticket {
+    position: relative;
+    background: var(--surface);
+    border: 1px dashed var(--line);
+    border-radius: 1px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .ticket::before, .ticket::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    background: var(--paper);
+    border: 1px dashed var(--line);
+    border-radius: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+  }
+  .ticket::before { left: -8px; }
+  .ticket::after  { right: -8px; }
+  .ticket-divider { border-top: 1px dashed var(--line); margin: 12px 0; }
+  .ticket-code { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.14em; font-weight: 500; }
+
+  .staff-action-btn {
+    width: 112px;
+    min-height: 40px;
+    padding: 9px 12px;
+    font-size: 11px;
+  }
+  .btn-danger-outline {
+    background: transparent;
+    color: #B42318;
+    border-color: #F1B7B2;
+  }
+  .btn-danger-outline:hover:not(:disabled) {
+    background: #FFF1F0;
+    border-color: #D92D20;
+  }
+
+  .hidden { display: none !important; }
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(7, 29, 89, 0.45);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .pay-option {
+    border: 1.5px solid var(--line);
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--surface);
+  }
+  .pay-option:hover { border-color: var(--accent); }
+  .pay-option.selected {
+    border-color: var(--primary);
+    background: rgba(17, 119, 200, 0.05);
+  }
+
+  ::placeholder { color: var(--faint); }
+
+  @media print {
+    body * { visibility: hidden; }
+    #printable-receipt, #printable-receipt * { visibility: visible; }
+    #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; }
+  }
+
+  header {
+    background: rgba(247, 250, 253, 0.94);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .section-rule {
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Desktop: show full nav, never show hamburger or mobile drawer */
+  @media (min-width: 768px) {
+    #mobile-menu { display: none !important; }
+    .nav-hamburger { display: none !important; }
+    header nav.desktop-nav { display: flex !important; }
+    header .desktop-actions { display: flex !important; }
+  }
+  @media (max-width: 767px) {
+    header nav.desktop-nav { display: none !important; }
+    header .desktop-actions { display: none !important; }
+  }
+  header{background:rgba(255,255,255,.92);box-shadow:0 8px 32px rgba(7,29,89,.05)}
+  .brand-mark{width:54px;height:54px;object-fit:contain;border-radius:50%;mix-blend-mode:multiply}
+  .hero-stage{position:relative;overflow:hidden;background:#fbfaf8;color:var(--ink);padding:74px 0 0}
+  .hero-stage:before{content:"";position:absolute;width:64%;height:108%;right:-10%;top:-9%;background:linear-gradient(138deg,#102d70 0%,#06183f 53%,#0c66ad 100%);border-radius:48% 0 0 56%/38% 0 0 62%;transform:rotate(-4deg);box-shadow:0 30px 70px rgba(7,29,89,.18)}
+  .hero-stage:after{content:"";position:absolute;width:62%;height:230px;right:-8%;bottom:118px;background:linear-gradient(100deg,#0789dc,#52c7f4 55%,#e7f6ff);border-radius:58% 0 0 62%;transform:rotate(-8deg);opacity:.95}
+  .hero-content{position:relative;z-index:2}
+  .hero-copy h1{font-family:'Outfit',system-ui,sans-serif;font-weight:700;font-size:clamp(3.1rem,5.7vw,5.8rem);line-height:.98;letter-spacing:-.065em;color:#07183e}
+  .hero-copy h1 em{font-family:inherit;font-style:normal;color:#137fc4}
+  .hero-copy>p{font-size:16px;line-height:1.7;color:#53627a;max-width:570px}
+  .hero-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .order-glow{border-radius:10px!important;padding:15px 25px!important;box-shadow:0 12px 28px rgba(17,119,200,.22);animation:ctaGlow 2.2s infinite}
+  .order-glow:hover{transform:translateY(-4px)}@keyframes ctaGlow{50%{box-shadow:0 0 0 11px rgba(17,119,200,0)}}
+  .estimate-link{border-radius:10px!important;background:#fff!important;border-color:#aebbd0!important;padding:15px 22px!important}
+  .hero-proof{display:flex;gap:24px;flex-wrap:wrap;margin-top:28px;padding-top:24px;border-top:1px solid #dae3ef;color:#526079;font-size:15.33px}.hero-proof span{display:flex;align-items:center;gap:8px}.proof-icon{color:#1185cd;font-size:20px}
+  .hero-visual{position:relative;min-height:590px}
+  .floating-logo{position:absolute;z-index:4;top:-46px;left:6%;display:block;width:290px;height:auto;object-fit:contain;border-radius:22px;background:#fff;padding:8px;box-shadow:0 28px 70px rgba(0,0,0,.24);animation:logoFloat 4s ease-in-out infinite}
+  @keyframes logoFloat{50%{transform:translateY(-10px)}}
+  .laundry-board{position:absolute;z-index:3;left:6%;top:190px;width:min(92%,620px);background:linear-gradient(145deg,#071a45,#07132e);border:1px solid rgba(155,205,255,.2);border-radius:18px;color:#fff;box-shadow:0 30px 70px rgba(0,0,0,.34);padding:22px}
+  .board-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.12)}.board-title{font:600 14px 'Outfit',sans-serif}.live-chip{font:600 10px 'IBM Plex Mono',monospace;color:#8ddeff;background:rgba(33,172,236,.14);border-radius:999px;padding:6px 9px}
+  .board-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.stat-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:13px}.stat-card small{display:block;color:#9db0ce;font-size:10px}.stat-card strong{display:block;font:600 20px 'IBM Plex Mono',monospace;margin-top:5px}
+  .order-row{display:grid;grid-template-columns:1.2fr .8fr .7fr;align-items:center;gap:12px;margin-top:12px;padding:13px;background:rgba(255,255,255,.05);border-radius:10px;font-size:12px}.order-row b{font-family:'IBM Plex Mono',monospace}.order-status{justify-self:end;color:#74d4ff;background:rgba(24,164,225,.14);padding:5px 8px;border-radius:999px;font-size:10px}
+  .floating-note{position:absolute;z-index:5;background:#fff;color:#102451;border-radius:14px;box-shadow:0 18px 42px rgba(1,13,40,.22);padding:16px}.note-track{right:-3%;top:92px;width:192px}.note-estimate{left:-8%;bottom:34px;width:210px}.floating-note small{color:#718097;font-size:10px}.floating-note strong{display:block;font-size:13px;margin:5px 0}.progress{height:6px;background:#e8eef6;border-radius:10px;overflow:hidden;margin-top:9px}.progress i{display:block;width:68%;height:100%;background:#168ad0;border-radius:10px}
+  .service-strip{position:relative;z-index:3;background:#071a45;color:#fff;margin-top:14px}.service-strip-inner{display:grid;grid-template-columns:1.35fr repeat(3,1fr);align-items:center;min-height:102px;gap:18px}.service-strip h2{font:600 14px 'Outfit',sans-serif;letter-spacing:.11em;text-transform:uppercase}.service-strip article{display:flex;align-items:center;gap:12px;font-size:16.33px}.service-strip article b{display:block}.service-strip article small{display:block;color:#b7c5dc;margin-top:3px;font-size:13.33px}.service-icon{font-size:27px;color:#49bdf1}
+  .map-directions{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:15px;font-weight:500;line-height:1.45;text-decoration:none}.map-directions:hover{text-decoration:underline;text-underline-offset:3px}.map-directions:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+  .services-home{background:#fff;padding:62px 0}.section-intro{text-align:center;max-width:660px;margin:0 auto 30px}.section-intro h2{font:700 clamp(2rem,3vw,3rem) 'Outfit',sans-serif;color:#07183e}.section-intro p{color:#68758a;margin-top:10px}.hero-services{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.service-card{overflow:hidden;border-radius:18px!important;color:var(--ink);box-shadow:0 12px 34px rgba(7,29,89,.08);transition:.25s;cursor:pointer}.service-card:hover{transform:translateY(-6px);box-shadow:0 18px 42px rgba(7,29,89,.14)}.service-card:focus-visible{outline:3px solid var(--accent);outline-offset:4px;transform:translateY(-4px)}.service-card h3{color:var(--primary)!important;font-family:'Outfit',sans-serif}.service-card img{width:100%;height:175px;object-fit:cover}.customise-cta{display:flex!important;width:max-content;margin:26px auto 0;border-radius:999px!important}
+  @media(max-width:1000px){.hero-stage{padding-top:50px}.hero-stage:before{width:80%;right:-34%}.hero-stage:after{width:78%;right:-31%}.hero-visual{min-height:560px}.floating-logo{left:18%;width:245px;height:auto}.laundry-board{left:2%;top:185px}.note-track{right:0}.service-strip-inner{grid-template-columns:1fr repeat(3,1fr)}}
+  @media(max-width:767px){.brand-mark{width:44px;height:44px}.hero-stage{padding:42px 0 0}.hero-stage:before{width:150%;height:54%;right:-72%;top:46%;border-radius:55% 0 0 0}.hero-stage:after{width:130%;right:-62%;bottom:84px}.hero-copy h1{font-size:clamp(2.8rem,14vw,4.4rem)}.hero-visual{min-height:595px;margin-top:26px}.floating-logo{top:0;left:50%;transform:translateX(-50%);width:235px;height:auto}.floating-logo:hover{transform:translateX(-50%)}@keyframes logoFloat{50%{transform:translate(-50%,-8px)}}.laundry-board{left:0;top:215px;width:100%;padding:16px}.board-grid{grid-template-columns:repeat(3,1fr)}.stat-card{padding:10px}.stat-card strong{font-size:15px}.order-row{grid-template-columns:1fr auto}.order-row span:nth-child(2){display:none}.note-track{display:none}.note-estimate{left:12px;bottom:14px}.service-strip-inner{grid-template-columns:1fr 1fr;padding:22px 0}.service-strip h2{grid-column:1/-1}.hero-services{grid-template-columns:1fr}.services-home{padding:48px 0}}
+</style>
+</head>
+<body class="min-h-screen flex flex-col antialiased relative">
+
+  <header class="sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
+      
+      <a href="#" onclick="goHome(); return false;" class="flex items-center gap-3 shrink-0">
+        <img src="laundry-loop-logo.jpg" alt="The Laundry Loop" class="brand-mark">
+        <div class="flex flex-col">
+          <span class="font-display font-semibold text-[17px] leading-none tracking-tight" data-biz-name>The Laundry Loop</span>
+          <span class="text-[10px] font-medium uppercase tracking-[0.14em] mt-0.5" style="color:var(--sub)" data-biz-tagline>Clean Clothes. Fresh Start.</span>
+        </div>
+      </a>
+
+      <nav class="desktop-nav hidden md:flex items-center gap-7">
+        <button onclick="goHome()" class="text-[13px] font-medium text-stone-600 hover:text-stone-900 transition">Home</button>
+        <button onclick="showView('view-services')" class="text-[13px] font-medium text-stone-600 hover:text-stone-900 transition">Services & Subscriptions</button>
+        <button onclick="showView('view-pricing')" class="text-[13px] font-medium text-stone-600 hover:text-stone-900 transition">Pricing</button>
+        <button onclick="showView('view-online-order')" class="text-[13px] font-medium text-stone-600 hover:text-stone-900 transition">Schedule Pickup</button>
+        <button onclick="scrollToDropoff()" class="text-[13px] font-medium text-stone-600 hover:text-stone-900 transition">Drop-Off</button>
+      </nav>
+
+      <div class="desktop-actions hidden md:flex items-center gap-2">
+        <button onclick="openTrackModal()" class="btn btn-outline text-[12px] px-3.5 py-2">Track</button>
+        <button id="account-nav-btn" onclick="onAccountNavClick()" class="btn btn-primary text-[12px] px-3.5 py-2">Log In</button>
+      </div>
+
+      <button onclick="toggleMobileMenu()" class="nav-hamburger md:hidden p-2 text-stone-800 shrink-0" aria-label="Open menu">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+    </div>
+    
+    <div id="mobile-menu" class="hidden flex-col px-5 py-5 space-y-3 md:!hidden" style="background:var(--paper); border-bottom:1px solid var(--line);">
+      <button onclick="goHome(); closeMobileMenu()" class="text-left text-sm font-medium text-stone-700">Home</button>
+      <button onclick="showView('view-services'); closeMobileMenu()" class="text-left text-sm font-medium text-stone-700">Services & Subscriptions</button>
+      <button onclick="showView('view-pricing'); closeMobileMenu()" class="text-left text-sm font-medium text-stone-700">Pricing</button>
+      <button onclick="showView('view-online-order'); closeMobileMenu()" class="text-left text-sm font-medium text-stone-700">Schedule Pickup</button>
+      <button onclick="scrollToDropoff(); closeMobileMenu()" class="text-left text-sm font-medium text-stone-700">Drop-Off</button>
+      <hr style="border-color:var(--line);">
+      <button onclick="openTrackModal(); closeMobileMenu()" class="btn btn-outline text-sm px-4 py-2.5 w-full">Track Status</button>
+      <button id="account-nav-btn-mobile" onclick="onAccountNavClick(); closeMobileMenu()" class="btn btn-primary text-sm px-4 py-2.5 w-full">Log In</button>
+    </div>
+  </header>
+
+  <main class="flex-grow">
+
+    <div id="view-landing" class="view-pane">
+      <section class="hero-stage section-rule">
+        <div class="max-w-6xl mx-auto px-5 sm:px-8">
+          <div class="hero-content grid lg:grid-cols-12 gap-10 items-center">
+            <div class="hero-copy lg:col-span-6 space-y-6">
+              <span id="hero-eyebrow" class="eyebrow">#1 Laundromat on the West Bank of Demerara</span>
+              <h1>
+                <span id="hero-title">Your laundry.</span><br><em id="hero-emphasis">Fresh, folded, done.</em>
+              </h1>
+              <p id="hero-description">
+                The Laundry Loop gives your clothes careful, dependable wash, dry and fold service—with clear prices and order tracking from drop-off to pickup.
+              </p>
+              <div class="hero-actions">
+                <button onclick="scrollToDropoff()" class="btn btn-primary order-glow text-[13px]">Order Now <span class="ml-3">→</span></button>
+                <button onclick="scrollToDropoff()" class="btn btn-outline estimate-link text-[13px]">Get an Instant Estimate <span class="ml-3">↗</span></button>
+              </div>
+              <div class="space-y-1">
+                <p class="text-[13px] font-medium"><span data-biz-address>1181 La Parfait Harmonie, West Bank Demerara</span></p>
+                <a id="maps-link" class="map-directions" href="https://maps.app.goo.gl/bLhw3EexXEfnfAVGA" target="_blank" rel="noopener noreferrer" aria-label="Open The Laundry Loop location in Google Maps">📍 <span id="directions-text">Obliquely opposite the Police Station at Four Corner</span></a>
+              </div>
+              <div class="hero-proof">
+                <span><b class="proof-icon">✓</b> Careful handling</span>
+                <span><b class="proof-icon">◎</b> Clear pricing</span>
+                <span><b class="proof-icon">↻</b> Live tracking</span>
+              </div>
+            </div>
+
+            <div class="hero-visual lg:col-span-6">
+              <img src="laundry-loop-logo.jpg" alt="The Laundry Loop logo" class="floating-logo">
+              <div class="laundry-board" aria-label="Laundry order status preview">
+                <div class="board-head"><span class="board-title">Today at The Laundry Loop</span><span class="live-chip">● LIVE</span></div>
+                <div class="board-grid">
+                  <div class="stat-card"><small>Orders today</small><strong>18</strong></div>
+                  <div class="stat-card"><small>Ready now</small><strong>07</strong></div>
+                  <div class="stat-card"><small>Avg. turnaround</small><strong>24h</strong></div>
+                </div>
+                <div class="order-row"><b>#LL-1048</b><span>Wash, dry &amp; fold</span><span class="order-status">Washing</span></div>
+                <div class="order-row"><b>#LL-1047</b><span>Standard package</span><span class="order-status">Ready</span></div>
+                <div class="order-row"><b>#LL-1046</b><span>Monthly care</span><span class="order-status">Drying</span></div>
+              </div>
+              <div class="floating-note note-track"><small>TRACK YOUR ORDER</small><strong>Know exactly when it’s ready.</strong><div class="progress"><i></i></div></div>
+              <div class="floating-note note-estimate"><small>INSTANT ESTIMATE</small><strong>20 lb wash &amp; fold</strong><span class="font-mono text-[18px]" style="color:var(--accent)" data-standard-price>GYD $5,000</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="service-strip"><div class="max-w-6xl mx-auto px-5 sm:px-8 service-strip-inner">
+          <h2>Built around your wash day</h2>
+          <article><span class="service-icon">◉</span><span><b>Drop off easily</b><small>Fast counter service</small></span></article>
+          <article><span class="service-icon">≈</span><span><b>We wash with care</b><small>Quality handling</small></span></article>
+          <article><span class="service-icon">✓</span><span><b>Track &amp; collect</b><small>Know when it’s ready</small></span></article>
+        </div></div>
+      </section>
+
+      <section class="services-home section-rule"><div class="max-w-6xl mx-auto px-5 sm:px-8">
+          <div class="section-intro"><span class="eyebrow">Laundry care that fits your life</span><h2>Simple options. No guesswork.</h2><p>Choose the service that fits today, or build your own wash below.</p></div><div class="hero-services">
+            <article class="panel service-card p-0" role="button" tabindex="0" aria-label="Build a regular wash order" onclick="scrollToDropoff()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToDropoff();}"><img src="https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?auto=format&amp;fit=crop&amp;w=700&amp;q=80" alt="Fresh folded laundry"><div class="p-5"><h3 class="font-display font-semibold text-xl">Regular Wash</h3><p class="text-[13px] mt-2" style="color:var(--sub)">Everyday wash and fold at <strong data-regular-price>GYD $300/lb</strong>.</p></div></article>
+            <article class="panel service-card p-0" role="button" tabindex="0" aria-label="View and select the Standard Package" onclick="showView('view-services')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showView('view-services');}"><img src="https://images.unsplash.com/photo-1545173168-9f1947eebb7f?auto=format&amp;fit=crop&amp;w=700&amp;q=80" alt="Laundry package"><div class="p-5"><h3 class="font-display font-semibold text-xl">Standard Package</h3><p class="text-[13px] mt-2" style="color:var(--sub)"><strong data-standard-price>GYD $5,000</strong> up to 20 lb, then $200 per extra lb.</p></div></article>
+            <article class="panel service-card p-0" role="button" tabindex="0" aria-label="View and select the Monthly Care Plan" onclick="showView('view-services')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showView('view-services');}"><img src="https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&amp;fit=crop&amp;w=700&amp;q=80" alt="Premium laundry care"><div class="p-5"><h3 class="font-display font-semibold text-xl">Monthly Care Plan</h3><p class="text-[13px] mt-2" style="color:var(--sub)"><strong data-monthly-price>GYD $40,000/month.</strong> Up to 40 lb weekly with premium detergent.</p></div></article>
+          </div><button onclick="scrollToDropoff()" class="btn btn-outline customise-cta px-6 py-3">Need something different? Build your wash →</button>
+        </div></section>
+
+      <section id="dropoff-section" class="py-10 sm:py-12 section-rule">
+        <div class="max-w-6xl mx-auto px-5 sm:px-8">
+          <div class="max-w-xl mb-7">
+            <span class="eyebrow">Instant estimate</span>
+            <h2 class="text-3xl sm:text-4xl font-display font-semibold mt-3 tracking-tight">Get an Estimate &amp; Place Your Order</h2>
+            <p class="text-[14px] mt-3 leading-relaxed" style="color:var(--sub);">Tell us what you need and add a scale photo if available. You’ll receive an estimate and tracking code instantly; <span data-estimate-disclaimer>the final price is confirmed after weighing.</span></p>
+          </div>
+
+          <div class="grid lg:grid-cols-12 gap-10">
+            <div class="lg:col-span-7 panel p-7 sm:p-8">
+              
+              <div class="p-3.5 mb-6 text-[12px] leading-relaxed" style="background:#F0F4F2; border:1px solid #D4E0D9; color:#3F5E4E;">
+                Information submitted here is stored securely for order tracking and history.
+              </div>
+
+              <form id="dropoff-form" class="space-y-5">
+                <div class="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label class="field-label">Full Name</label>
+                    <input type="text" id="dropoff-name" required minlength="2" maxlength="120" placeholder="Marcus Persaud" class="field">
+                  </div>
+                  <div>
+                    <label class="field-label">WhatsApp Number</label>
+                    <input type="tel" id="dropoff-phone" required minlength="7" maxlength="20" pattern="[+0-9 ()-]{7,20}" placeholder="5926001234" class="field font-mono text-[13px]">
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="field-label mb-0">Laundry Services</label>
+                    <span class="text-[11px]" style="color:var(--faint);">Mix and match in one order</span>
+                  </div>
+                  <div id="dropoff-items" class="space-y-2.5"></div>
+                  <button type="button" onclick="addOrderItem('dropoff')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3">+ Add another service</button>
+                </div>
+
+                <div>
+                  <label class="field-label">Garment Description / Special Care</label>
+                  <input type="text" id="dropoff-notes" placeholder="e.g. 12 shirts, 3 pants. Care with green dress." class="field">
+                </div>
+
+                <div>
+                  <label class="field-label">Scale Verification Photo <span style="color:var(--faint)">(optional)</span></label>
+                  <div class="flex items-center gap-4">
+                    <label class="flex-1 cursor-pointer flex flex-col items-center justify-center p-5" style="border:1px dashed var(--line); border-radius:var(--radius);">
+                      <svg class="w-5 h-5 mb-1.5" style="color:var(--faint);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+                      <span class="text-[12px] font-medium text-stone-500">Upload scale photo</span>
+                      <input type="file" id="dropoff-photo-input" accept="image/*" class="hidden">
+                    </label>
+                    <div id="dropoff-photo-preview" class="w-[72px] h-[72px] shrink-0 flex items-center justify-center overflow-hidden" style="border:1px solid var(--line); border-radius:var(--radius); background:var(--paper);">
+                      <span class="text-[10px] text-center px-1" style="color:var(--faint);">No photo</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full py-3.5 text-[13px]">Continue to Payment</button>
+              </form>
+            </div>
+
+            <div class="lg:col-span-5">
+              <div class="ticket p-6 sm:p-7 lg:sticky lg:top-28">
+                <div class="text-center pb-3" style="border-bottom:1px dashed var(--line);">
+                  <div class="text-[10px] uppercase tracking-[0.16em] font-medium" style="color:var(--faint);">Order Preview</div>
+                  <div class="font-display font-semibold text-lg mt-1" data-biz-name>The Laundry Loop</div>
+                </div>
+                <div class="pt-4 space-y-2.5 text-[13px]">
+                  <div class="flex justify-between"><span style="color:var(--faint);">Services</span><span id="dropoff-preview-category" class="font-medium text-right max-w-[65%]">Regular Laundry × 1</span></div>
+                  <div class="flex justify-between"><span style="color:var(--faint);">Qty/Weight</span><span id="dropoff-preview-weight" class="font-medium">1</span></div>
+                  <div class="ticket-divider"></div>
+                  <div class="flex justify-between text-[15px] font-semibold"><span>Estimated Total</span><span id="dropoff-preview-total">$300 GYD</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="view-services" class="view-pane hidden py-16 max-w-6xl mx-auto px-5 sm:px-8 space-y-14">
+      <div class="text-center max-w-2xl mx-auto">
+        <span class="eyebrow">Subscriptions</span>
+        <h2 class="text-3xl sm:text-4xl font-display font-semibold mt-3 tracking-tight">Our Premium Package</h2>
+        <p class="text-[14px] mt-3" style="color:var(--sub);">Simplified laundry care, perfectly tailored to your needs.</p>
+      </div>
+      
+      <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div class="panel p-7 sm:p-10 border-t-2 relative w-full shadow-sm" style="border-top-color:var(--accent);">
+          <div class="text-[11px] font-medium uppercase tracking-[0.1em] mb-2" style="color:var(--sub);">Monthly Plan</div>
+          <h4 class="font-display font-semibold text-2xl">Monthly Package</h4>
+          <div class="font-mono text-3xl font-medium my-4 text-stone-800" data-monthly-price>$40,000 GYD</div>
+          <ul class="text-[14px] space-y-3 mb-8" style="color:var(--sub);">
+            <li>Our monthly plan allows for up to <strong>40 lbs per week.</strong></li>
+            <li><strong>Service:</strong> Wash &amp; Fold</li>
+            <li><strong>Frequency:</strong> Once per week</li>
+            <li><strong>Free:</strong> Premium detergent</li>
+          </ul>
+          <button onclick="openInvestModal('Monthly Package', 40000)" class="btn btn-primary w-full py-3.5 text-[13px]">Select this deal</button>
+        </div>
+
+        <div class="panel p-7 sm:p-10 border-t-2 relative w-full shadow-sm" style="border-top-color:var(--accent);">
+          <div class="absolute -top-3 right-5 text-[10px] uppercase tracking-[0.1em] font-medium px-2.5 py-0.5 text-white" style="background:var(--accent); border-radius:var(--radius);">Most Popular</div>
+          <div class="text-[11px] font-medium uppercase tracking-[0.1em] mb-2" style="color:var(--sub);">One-Time Service</div>
+          <h4 class="font-display font-semibold text-2xl">Standard Package</h4>
+          <div class="font-mono text-3xl font-medium my-4 text-stone-800" data-standard-price>$5,000 GYD</div>
+          <ul class="text-[14px] space-y-3 mb-8" style="color:var(--sub);">
+            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <strong>Service:</strong> Wash & Fold</li>
+            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <strong>Weight:</strong> 20lbs</li>
+            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <strong>Overage:</strong> $200 per additional lb</li>
+          </ul>
+          <button onclick="openInvestModal('Standard Package', 5000)" class="btn btn-primary w-full py-3.5 text-[13px]">Select this deal</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-pricing" class="view-pane hidden py-16 max-w-6xl mx-auto px-5 sm:px-8">
+      <div class="max-w-xl mb-14">
+        <span class="eyebrow">Rates</span>
+        <h2 class="text-3xl sm:text-4xl font-display font-semibold mt-3 tracking-tight">Transparent pricing</h2>
+        <p class="text-[14px] mt-3" style="color:var(--sub);">Rates in Guyanese Dollars. Instant estimate below.</p>
+      </div>
+
+      <div class="p-7 sm:p-8 max-w-xl mx-auto" style="background:var(--primary); color:#FAFAF9; border-radius:var(--radius);">
+        <h3 class="font-display font-semibold text-xl mb-1">Rate estimator</h3>
+        <p class="text-[12px] mb-6 opacity-70">Mix and match services for an instant total.</p>
+        <div id="calc-items" class="space-y-2.5"></div>
+        <button type="button" onclick="addOrderItem('calc')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3 w-full" style="border-color:rgba(255,255,255,.25); color:#FAFAF9;">+ Add another service</button>
+        <div class="mt-6 pt-5 flex items-center justify-between" style="border-top:1px solid rgba(255,255,255,.15);">
+          <span class="text-[11px] uppercase tracking-[0.1em] opacity-70">Estimated Total</span>
+          <span id="calc-total" class="font-mono text-2xl font-medium">$300 GYD</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-online-order" class="view-pane hidden py-16 max-w-2xl mx-auto px-5 sm:px-8">
+      <div class="panel p-7 sm:p-9">
+        <div class="pb-6 mb-6" style="border-bottom:1px solid var(--line);">
+          <h2 class="font-display font-semibold text-3xl tracking-tight">Schedule pickup</h2>
+          <p class="text-[14px] mt-2" style="color:var(--sub);">Submit details and preferred pickup window.</p>
+        </div>
+
+        <div class="p-3.5 mb-6 text-[12px] leading-relaxed" style="background:#F0F4F2; border:1px solid #D4E0D9; color:#3F5E4E;">
+          Information submitted here is stored securely for order tracking.
+        </div>
+
+        <form id="online-order-form" class="space-y-6">
+          <div class="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label class="field-label">Customer Name</label>
+              <input type="text" id="online-name" required minlength="2" maxlength="120" placeholder="Anisa Khan" class="field">
+            </div>
+            <div>
+              <label class="field-label">WhatsApp / Phone</label>
+              <input type="tel" id="online-phone" required minlength="7" maxlength="20" pattern="[+0-9 ()-]{7,20}" placeholder="5926112233" class="field font-mono text-[13px]">
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label class="field-label">Pickup Date</label>
+              <input type="date" id="online-date" required class="field">
+            </div>
+            <div>
+              <label class="field-label">Time Window</label>
+              <select id="online-time" class="field">
+                <option value="Morning (8:00 AM - 11:00 AM)">Morning (8:00 – 11:00)</option>
+                <option value="Midday (11:00 AM - 2:00 PM)">Midday (11:00 – 14:00)</option>
+                <option value="Afternoon (2:00 PM - 5:00 PM)">Afternoon (14:00 – 17:00)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="field-label mb-0">Laundry Services</label>
+              <span class="text-[11px]" style="color:var(--faint);">Mix and match in one order</span>
+            </div>
+            <div id="online-items" class="space-y-2.5"></div>
+            <button type="button" onclick="addOrderItem('online')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3">+ Add another service</button>
+          </div>
+
+          <div>
+            <label class="field-label">Special Instructions</label>
+            <textarea id="online-notes" rows="3" placeholder="Coffee stain on white blouse..." class="field resize-none"></textarea>
+          </div>
+
+          <div class="p-5 flex flex-wrap items-center justify-between gap-4" style="background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);">
+            <div>
+              <span class="text-[11px] uppercase tracking-[0.1em] block" style="color:var(--faint);">Estimated Total</span>
+              <span id="online-calculated-cost" class="font-mono text-xl font-medium">$300 GYD</span>
+            </div>
+            <button type="submit" class="btn btn-primary px-6 py-3 text-[13px]">Continue to Payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="view-account" class="view-pane hidden py-16 max-w-4xl mx-auto px-5 sm:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-10">
+        <div>
+          <h2 class="font-display font-semibold text-3xl tracking-tight">My Account</h2>
+          <p class="text-[14px] mt-1.5" style="color:var(--sub);" id="account-welcome-msg">Welcome back.</p>
+        </div>
+        <button onclick="logOut()" class="btn btn-outline text-[12px] px-4 py-2">Log Out</button>
+      </div>
+      <div id="account-orders-list" class="space-y-4"></div>
+    </div>
+
+    <div id="view-staff" class="view-pane hidden py-16 max-w-6xl mx-auto px-5 sm:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-10">
+        <div>
+          <h2 id="staff-dashboard-title" class="font-display font-semibold text-3xl tracking-tight">Staff Dashboard</h2>
+          <p class="text-[14px] mt-1.5" style="color:var(--sub);">Manage orders, archive pickups, send WhatsApp alerts, apply discounts, or refund orders.</p>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <button onclick="openPosModal()" class="btn btn-accent text-[12px] px-3.5 py-2">+ Manual POS</button>
+          <button onclick="openInventoryModal()" class="btn btn-outline text-[12px] px-3.5 py-2">Inventory</button>
+          <button onclick="openDiscountModal()" class="btn btn-outline text-[12px] px-3.5 py-2">Discount</button>
+          <span id="staff-role-chip" class="chip chip-ready hidden sm:inline-flex">Staff Authenticated</span>
+          <button onclick="staffLogOut()" class="btn btn-outline text-[12px] px-3 py-1.5">Logout</button>
+        </div>
+      </div>
+
+      <div id="staff-operations-summary" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6"></div>
+      <div id="staff-inventory-alerts" class="space-y-2 mb-6"></div>
+
+      <div class="mb-5">
+        <input type="text" id="staff-search-input" onkeyup="renderStaffTable()" placeholder="Search by code or phone..." class="field px-4 py-3 text-[13px] w-full max-w-sm">
+      </div>
+
+      <div class="panel overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-[13px]">
+            <thead style="background:var(--primary);" class="text-white uppercase text-[10px] font-medium tracking-[0.08em]">
+              <tr>
+                <th class="py-3.5 px-4">Code</th>
+                <th class="py-3.5 px-4">Customer</th>
+                <th class="py-3.5 px-4">Phone</th>
+                <th class="py-3.5 px-4">Qty/Notes</th>
+                <th class="py-3.5 px-4">Total</th>
+                <th class="py-3.5 px-4">Payment</th>
+                <th class="py-3.5 px-4">Status</th>
+                <th class="py-3.5 px-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="staff-tracker-table" class="font-medium" style="border-top:1px solid var(--line);"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="invest-modal" class="modal-overlay hidden">
+    <div class="panel max-w-md w-full p-7 sm:p-8 space-y-6 relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeInvestModal()" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl leading-none">&times;</button>
+      
+      <div>
+        <span class="text-[10px] font-medium uppercase tracking-[0.12em]" style="color:var(--accent);">Subscription</span>
+        <h3 id="modal-plan-title" class="font-display font-semibold text-2xl mt-1">Plan Title</h3>
+        <div id="modal-plan-price" class="font-mono text-[15px] mt-1" style="color:var(--sub);">Price GYD</div>
+      </div>
+
+      <div id="step-choose-pay" class="space-y-4">
+        <p class="text-[13px] text-stone-600">Please select your preferred payment method:</p>
+        <div class="space-y-2.5">
+          <button onclick="selectInvestPay('Cash')" class="btn btn-outline w-full py-3.5 text-[13px] justify-between px-5">
+            <span>Cash in Store</span>
+            <span class="text-[11px] text-stone-400">Pay at counter</span>
+          </button>
+          <button onclick="selectInvestPay('MMG')" class="btn btn-outline w-full py-3.5 text-[13px] justify-between px-5">
+            <span>MMG</span>
+            <span class="text-[11px] text-stone-400">Mobile Money Guyana</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="step-invest-account" class="hidden space-y-4">
+        <div class="p-3.5 text-[12px] leading-relaxed" style="background:#F0F4F2; border:1px solid #D4E0D9; color:#3F5E4E;">
+          Please enter your details to create your account.
+        </div>
+        
+        <div id="invest-mmg-alert" class="hidden p-3.5 text-[12px] leading-relaxed mb-4" style="background:#FFFBEB; border:1px solid #FEF3C7; color:#92400E;">
+          <strong>MMG Transfer Details:</strong><br>
+          Number: <span class="font-mono font-medium" data-mmg-number>6351452</span><br>
+          Name: <span class="font-mono font-medium" data-mmg-name>Jermaine McPherson</span>
+        </div>
+
+        <div id="invest-mmg-proof" class="hidden p-4 space-y-3 mb-4" style="background:#F8FAF9; border:1px solid var(--line); border-radius:var(--radius);">
+          <label class="field-label">MMG transaction reference *</label>
+          <input type="text" id="invest-mmg-proof-ref" class="field font-mono" placeholder="Enter the MMG reference code" maxlength="120" required>
+          <p class="text-[10px]" style="color:var(--faint);">Staff will validate your MMG payment before marking it as paid.</p>
+        </div>
+
+        <form id="account-form" onsubmit="handleAccountSubmit(event)" class="space-y-3.5">
+          <div>
+            <label class="field-label">Full Name *</label>
+            <input type="text" id="acc-name" required placeholder="Sarah Persaud" class="field">
+          </div>
+          <div>
+            <label class="field-label">WhatsApp Number *</label>
+            <input type="tel" id="acc-phone" required placeholder="592-600-0000" class="field font-mono text-[13px]">
+          </div>
+          <div>
+            <label class="field-label">Delivery Address (Optional)</label>
+            <input type="text" id="acc-address" placeholder="142 Regent St, Georgetown" class="field">
+          </div>
+          <div>
+            <label class="field-label">Password *</label>
+            <input type="password" id="acc-pass" required minlength="6" maxlength="72" placeholder="At least 6 characters" class="field font-mono">
+          </div>
+          <button type="submit" class="btn btn-primary w-full py-3 text-[13px] mt-2">Submit & Create Account</button>
+          <button type="button" onclick="document.getElementById('step-invest-account').classList.add('hidden'); document.getElementById('step-choose-pay').classList.remove('hidden');" class="btn btn-outline w-full py-2.5 text-[12px]">Back to Payment Choice</button>
+        </form>
+      </div>
+
+      <div id="step-invest-success" class="hidden space-y-4 text-center">
+        <div class="p-6">
+          <h3 class="font-display font-semibold text-2xl text-stone-900 mb-2">Order Created!</h3>
+          <p class="text-[13px] text-stone-600 mb-4">Your plan order is ready and connected to your account.</p>
+          <div class="p-4" style="background:var(--paper); border:1px dashed var(--line);">
+            <p class="text-[11px] uppercase tracking-widest text-stone-500 mb-1">Order Tracking Code</p>
+            <div id="acc-backup-code" class="text-2xl font-mono font-medium tracking-widest text-stone-800"></div>
+            <p class="text-[10px] text-stone-500 mt-2">Save this code to track the order from the homepage.</p>
+          </div>
+        </div>
+        <button onclick="closeInvestModal()" class="btn btn-primary w-full py-3 text-[13px]">Done</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="payment-flow-modal" class="modal-overlay hidden">
+    <div class="panel max-w-md w-full p-7 space-y-5 relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('payment-flow-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+
+      <div id="payment-step-choose" class="space-y-5">
+        <div>
+          <h3 class="font-display font-semibold text-2xl">Select payment</h3>
+          <p class="text-[13px] mt-1" style="color:var(--sub);">Total: <span id="payment-choose-total" class="font-mono font-medium text-stone-800">$0 GYD</span></p>
+        </div>
+        <div class="space-y-2.5">
+          <button onclick="selectPaymentMethod('Cash')" class="btn btn-outline w-full py-3.5 text-[13px] justify-between px-5">
+            <span>Cash</span>
+            <span class="text-[11px] text-stone-400">Pay at pickup</span>
+          </button>
+          <button onclick="selectPaymentMethod('MMG')" class="btn btn-outline w-full py-3.5 text-[13px] justify-between px-5">
+            <span>MMG</span>
+            <span class="text-[11px] text-stone-400">Mobile Money Guyana</span>
+          </button>
+        </div>
+      </div>
+
+
+      <div id="payment-step-mmg" class="hidden space-y-5">
+        <h3 class="font-display font-semibold text-2xl">MMG Transfer</h3>
+        <div class="p-4 text-[13px] space-y-2" style="background:var(--paper); border:1px solid var(--line);">
+          <div>Send payment to Number: <span class="font-mono font-medium" data-mmg-number>6351452</span></div>
+          <div>Name: <span class="font-medium" data-mmg-name>Jermaine McPherson</span></div>
+          <div>Reference: <span id="mmg-reference" class="font-mono font-medium"></span></div>
+        </div>
+        <div class="p-4 space-y-3" style="background:#F8FAF9; border:1px solid var(--line);">
+          <label class="field-label">MMG transaction reference *</label>
+          <input type="text" id="payment-mmg-proof-ref" class="field font-mono" placeholder="Enter the MMG reference code" maxlength="120">
+          <p class="text-[10px]" style="color:var(--faint);">Staff will validate your MMG payment before marking it as paid.</p>
+        </div>
+        <button onclick="confirmMmgSent()" class="btn btn-primary w-full py-3 text-[13px]">I have sent the payment</button>
+        <button onclick="showPaymentStep('choose')" class="btn btn-outline w-full py-2.5 text-[12px]">Back</button>
+      </div>
+
+      <div id="payment-step-done" class="hidden space-y-4"></div>
+    </div>
+  </div>
+
+  <div id="track-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <button onclick="closeModal('track-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <div>
+        <h3 class="font-display font-semibold text-2xl">Track order</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Enter your tracking code.</p>
+      </div>
+      <input type="text" id="track-code-input" placeholder="e.g. K7M2Q9" class="field font-mono uppercase tracking-widest text-center text-lg py-3">
+      <button onclick="trackOrder()" class="btn btn-primary w-full py-3 text-[13px]">Look Up</button>
+      <div id="track-result"></div>
+    </div>
+  </div>
+
+  <div id="discount-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <button onclick="closeModal('discount-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <div>
+        <h3 class="font-display font-semibold text-2xl">Apply Discount</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Authorized staff only.</p>
+      </div>
+      <div>
+        <label class="field-label">Order Code</label>
+        <input type="text" id="discount-code" class="field font-mono uppercase" placeholder="e.g. A1B2C3">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Amount</label>
+          <input type="number" id="discount-val" class="field font-mono">
+        </div>
+        <div>
+          <label class="field-label">Type</label>
+          <select id="discount-type" class="field">
+            <option value="percent">Percent (%)</option>
+            <option value="flat">Flat Amount ($)</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="applyDiscount()" class="btn btn-primary w-full py-3 text-[13px]">Apply Discount</button>
+    </div>
+  </div>
+
+  <div id="inventory-modal" class="modal-overlay hidden">
+    <div class="panel max-w-3xl w-full p-6 sm:p-7 space-y-5 relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('inventory-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <div>
+        <span class="eyebrow">Operations Data</span>
+        <h3 class="font-display font-semibold text-2xl mt-1">Inventory Tracker</h3>
+        <p class="text-[13px] mt-1 max-w-xl" style="color:var(--sub);">Record every restock, usage, waste, or stock correction. These records power the runout and purchasing recommendations.</p>
+      </div>
+      <div id="inventory-summary-list" class="grid sm:grid-cols-2 gap-3"></div>
+      <form id="inventory-movement-form" class="panel p-5 space-y-4" onsubmit="submitInventoryMovement(event)">
+        <h4 class="font-display font-semibold text-lg">Record stock movement</h4>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="field-label">Inventory Item</label>
+            <select id="inventory-item-id" class="field" required></select>
+          </div>
+          <div>
+            <label class="field-label">Movement</label>
+            <select id="inventory-movement-type" class="field" required>
+              <option value="restock">Restock / Purchase</option>
+              <option value="usage">Used</option>
+              <option value="waste">Wasted / Spilled</option>
+              <option value="adjustment">Stock Correction</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Quantity</label>
+            <input id="inventory-quantity" type="number" step="0.001" class="field font-mono" required placeholder="e.g. 5">
+          </div>
+          <div>
+            <label class="field-label">Unit Cost (Optional)</label>
+            <input id="inventory-unit-cost" type="number" step="0.01" min="0" class="field font-mono" placeholder="GYD">
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Note</label>
+          <input id="inventory-note" type="text" maxlength="500" class="field" placeholder="Supplier, reason, receipt number, or stock-count note">
+        </div>
+        <button class="btn btn-primary w-full py-3 text-[13px]" type="submit">Save Inventory Record</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="edit-order-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <button onclick="closeModal('edit-order-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <div>
+        <h3 class="font-display font-semibold text-2xl">Edit Order</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Update details for order <span id="edit-code-display" class="font-mono font-medium"></span></p>
+      </div>
+      <input type="hidden" id="edit-code">
+      <div>
+        <label class="field-label">Customer Name</label>
+        <input type="text" id="edit-name" class="field">
+      </div>
+      <div>
+        <label class="field-label">Qty/Weight</label>
+        <input type="number" id="edit-weight" step="0.5" class="field font-mono">
+      </div>
+      <div>
+        <label class="field-label">Notes</label>
+        <input type="text" id="edit-notes" class="field">
+      </div>
+      <button onclick="saveEditOrder()" class="btn btn-primary w-full py-3 text-[13px]">Save Changes</button>
+    </div>
+  </div>
+
+  <div id="auth-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <button onclick="closeModal('auth-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      
+      <div class="flex border-b border-stone-200">
+        <button id="auth-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2.5 text-[13px] font-medium border-b-2" style="border-color:var(--primary); color:var(--ink);">Log In</button>
+        <button id="auth-tab-create" onclick="switchAuthTab('create')" class="flex-1 py-2.5 text-[13px] font-medium border-b-2 border-transparent" style="color:var(--faint);">Create Account</button>
+      </div>
+
+      <div id="auth-panel-login" class="space-y-4">
+        <div>
+          <label class="field-label">Phone</label>
+          <input type="tel" id="login-phone" class="field font-mono" placeholder="5926001234">
+        </div>
+        <div>
+          <label class="field-label">Passcode</label>
+          <input type="password" id="login-passcode" class="field font-mono" placeholder="••••">
+        </div>
+        <p id="login-error" class="hidden text-[12px] text-red-700"></p>
+        <button onclick="submitLogin()" class="btn btn-primary w-full py-3 text-[13px]">Log In</button>
+      </div>
+
+      <div id="auth-panel-create" class="hidden space-y-4">
+        <div>
+          <label class="field-label">Full Name</label>
+          <input type="text" id="create-name" class="field" placeholder="Your name">
+        </div>
+        <div>
+          <label class="field-label">Phone</label>
+          <input type="tel" id="create-phone" class="field font-mono" placeholder="5926001234">
+        </div>
+        <div>
+          <label class="field-label">Passcode</label>
+          <input type="password" id="create-passcode" minlength="6" maxlength="72" class="field font-mono" placeholder="At least 6 characters">
+        </div>
+        <div>
+          <label class="field-label">Confirm Passcode</label>
+          <input type="password" id="create-passcode-confirm" minlength="6" maxlength="72" class="field font-mono" placeholder="Repeat passcode">
+        </div>
+        <p id="create-error" class="hidden text-[12px] text-red-700"></p>
+        <button onclick="submitCreateAccount()" class="btn btn-primary w-full py-3 text-[13px]">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="staff-login-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <div>
+        <span class="eyebrow">The Laundry Loop</span>
+        <h3 class="font-display font-semibold text-2xl mt-1">Staff &amp; Administration</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Authorized personnel only. Your account role determines your access.</p>
+      </div>
+      <div>
+        <label class="field-label">Staff Email</label>
+        <input type="email" id="staff-user" class="field" placeholder="name@business.com" autocomplete="username">
+      </div>
+      <div>
+        <label class="field-label">Password</label>
+        <input type="password" id="staff-pass" class="field font-mono" placeholder="••••" autocomplete="current-password">
+      </div>
+      <p id="staff-login-error" class="hidden text-[12px] text-red-700">Invalid credentials.</p>
+      <button onclick="submitStaffLogin()" class="btn btn-primary w-full py-3 text-[13px]">Enter Dashboard</button>
+      <button onclick="openStaffRecovery()" class="w-full text-[12px] font-medium" style="color:var(--accent);">Forgot your password?</button>
+    </div>
+  </div>
+
+  <div id="staff-recovery-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <button onclick="closeStaffRecovery()" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <div>
+        <h3 class="font-display font-semibold text-2xl">Reset Password</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Enter your authorized staff email. We will send a secure recovery link.</p>
+      </div>
+      <div>
+        <label class="field-label">Staff Email</label>
+        <input type="email" id="staff-recovery-email" class="field" placeholder="name@business.com" autocomplete="email">
+      </div>
+      <p id="staff-recovery-status" class="hidden text-[12px]"></p>
+      <button onclick="requestStaffPasswordReset()" class="btn btn-primary w-full py-3 text-[13px]">Send Recovery Email</button>
+      <button onclick="closeStaffRecovery()" class="btn btn-outline w-full py-3 text-[13px]">Back to Login</button>
+    </div>
+  </div>
+
+  <div id="staff-new-password-modal" class="modal-overlay hidden">
+    <div class="panel max-w-sm w-full p-7 space-y-5 relative">
+      <div>
+        <h3 class="font-display font-semibold text-2xl">Choose a New Password</h3>
+        <p class="text-[13px] mt-1" style="color:var(--sub);">Use at least 10 characters and do not reuse a password from another account.</p>
+      </div>
+      <div>
+        <label class="field-label">New Password</label>
+        <input type="password" id="staff-new-password" minlength="10" class="field" autocomplete="new-password">
+      </div>
+      <div>
+        <label class="field-label">Confirm New Password</label>
+        <input type="password" id="staff-new-password-confirm" minlength="10" class="field" autocomplete="new-password">
+      </div>
+      <p id="staff-new-password-status" class="hidden text-[12px]"></p>
+      <button onclick="completeStaffPasswordReset()" class="btn btn-primary w-full py-3 text-[13px]">Save New Password</button>
+    </div>
+  </div>
+
+  <div id="pos-modal" class="modal-overlay hidden">
+    <div class="panel max-w-md w-full p-7 space-y-5 relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('pos-modal')" class="absolute top-4 right-5 text-stone-400 hover:text-stone-800 text-xl">&times;</button>
+      <h3 class="font-display font-semibold text-2xl">Manual POS Order</h3>
+      <form id="pos-form" class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">Customer Name</label>
+            <input type="text" id="pos-name" required class="field">
+          </div>
+          <div>
+            <label class="field-label">Phone</label>
+            <input type="tel" id="pos-phone" required class="field font-mono text-[13px]">
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="field-label mb-0">Laundry Services</label>
+            <span class="text-[11px]" style="color:var(--faint);">Mix and match</span>
+          </div>
+          <div id="pos-items" class="space-y-2.5"></div>
+          <button type="button" onclick="addOrderItem('pos')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3">+ Add another service</button>
+        </div>
+        <div>
+          <label class="field-label">Notes</label>
+          <input type="text" id="pos-notes" class="field">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label">Payment Method</label>
+            <select id="pos-payment-method" class="field">
+              <option value="Cash">Cash</option>
+              <option value="MMG">MMG</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Payment Status</label>
+            <select id="pos-payment-status" class="field">
+              <option value="Paid">Paid</option>
+              <option value="Pay at Pickup">Pay at Pickup</option>
+              <option value="Pending Confirmation">Pending Confirmation</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-2">
+          <span id="pos-total-display" class="font-mono text-lg font-medium">$300 GYD</span>
+          <button type="submit" class="btn btn-primary px-5 py-2.5 text-[13px]">Create Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="receipt-modal" class="modal-overlay hidden">
+    <div class="max-w-sm w-full p-6 relative space-y-4" style="background:#fff; border-radius:var(--radius);">
+      <button onclick="closeModal('receipt-modal')" class="absolute top-4 right-4 text-xl font-medium" style="color:var(--faint);">&times;</button>
+      <div id="printable-receipt" class="ticket font-mono text-[11px] p-5 space-y-3">
+        <div class="text-center pb-2" style="border-bottom:1px dashed var(--line);">
+          <div class="font-display font-semibold text-base" data-biz-name>The Laundry Loop</div>
+          <div data-biz-address class="text-[10px] mt-0.5">1181 La Parfait Harmonie, West Bank Demerara</div>
+          <div class="text-[10px]">Tel: <span data-biz-phone>+592 600-1234</span></div>
+        </div>
+        <div id="receipt-details" class="space-y-1"></div>
+        <div class="pt-2 text-center text-[10px]" style="border-top:1px dashed var(--line); color:var(--faint);">
+          Present order code upon pickup.
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="window.print()" class="btn btn-primary flex-1 py-2.5 text-[12px]">Print Receipt</button>
+        <button onclick="closeModal('receipt-modal')" class="btn btn-outline px-4 py-2.5 text-[12px]">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="py-10 mt-16" style="background:var(--primary); color:#A8A29E;">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8 text-center text-[12px] space-y-2">
+      <p>© 2026 <span data-biz-name>The Laundry Loop</span> — <span data-biz-tagline>Clean Clothes. Fresh Start.</span> <span data-biz-address>1181 La Parfait Harmonie, West Bank Demerara</span>.</p>
+      <p>📍 Obliquely opposite Police Station on 4 corner</p>
+    </div>
+  </footer>
+
+<script>
+  // Supabase Configuration
+  const SUPABASE_URL = "https://coohutrnqcxjhkxprama.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WwvZpvMkiHM3YOLhwty85g_wGZKQ84e";
+
+  let sbClient = null;
+  if (window.supabase) {
+    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    testConnection();
+  }
+
+  async function testConnection() {
+    if(!sbClient) return;
+    const { data, error } = await sbClient.rpc('laundry_loop_health');
+    if (error) {
+      console.error('❌ Supabase Error:', error.message);
+    } else {
+      console.log('✅ Connected to Supabase successfully:', data);
+    }
+  }
+
+  const DEFAULT_CONFIG = {
+    name: "The Laundry Loop",
+    tagline: "Clean Clothes. Fresh Start.",
+    phone: "+592 600-1234",
+    address: "1181 La Parfait Harmonie, West Bank Demerara",
+    primary: "#071D59",
+    accent: "#1177C8",
+    standardPackagePrice: 5000,
+    monthlyPackagePrice: 40000
+  };
+  const savedConfig = JSON.parse(localStorage.getItem('lt_config') || 'null') || {};
+  let CONFIG = {
+    ...DEFAULT_CONFIG,
+    phone: savedConfig.phone || DEFAULT_CONFIG.phone,
+    address: savedConfig.address || DEFAULT_CONFIG.address
+  };
+
+  let IS_STAFF_LOGGED_IN = false;
+  let activePlan = { name: '', price: 0 };
+  let selectedPaymentMethod = null;
+
+  function toggleMobileMenu() {
+    const menu = document.getElementById('mobile-menu');
+    if (!menu) return;
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      menu.classList.add('hidden');
+      menu.classList.remove('flex');
+      return;
+    }
+    const opening = menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !opening);
+    menu.classList.toggle('flex', opening);
+  }
+
+  function closeMobileMenu() {
+    const menu = document.getElementById('mobile-menu');
+    if (!menu) return;
+    menu.classList.add('hidden');
+    menu.classList.remove('flex');
+  }
+
+  window.addEventListener('resize', () => {
+    if (window.matchMedia('(min-width: 768px)').matches) closeMobileMenu();
+  });
+
+  function applyConfig(){
+    document.documentElement.style.setProperty('--primary', CONFIG.primary);
+    document.documentElement.style.setProperty('--accent', CONFIG.accent);
+    document.querySelectorAll('[data-biz-name]').forEach(el => el.textContent = CONFIG.name);
+    document.querySelectorAll('[data-biz-tagline]').forEach(el => el.textContent = CONFIG.tagline);
+    document.querySelectorAll('[data-biz-phone]').forEach(el => el.textContent = CONFIG.phone);
+    document.querySelectorAll('[data-biz-address]').forEach(el => el.textContent = CONFIG.address);
+    document.title = CONFIG.name + " | " + CONFIG.tagline;
+    const logoLetter = document.getElementById('logo-letter');
+    if (logoLetter) logoLetter.textContent = (CONFIG.name.trim()[0] || "S").toUpperCase();
+    localStorage.setItem('lt_config', JSON.stringify(CONFIG));
+  }
+
+  function openModal(id){
+    const el = document.getElementById(id);
+    if(el) {
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+    }
+  }
+
+  function closeModal(id){
+    const el = document.getElementById(id);
+    if(el) {
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    }
+  }
+
+  function showView(viewId){
+    if (viewId === 'view-staff' && location.pathname !== '/admin') {
+      location.assign('/admin');
+      return;
+    }
+    document.querySelectorAll('.view-pane').forEach(el => el.classList.add('hidden'));
+    const active = document.getElementById(viewId);
+    if (active) active.classList.remove('hidden');
+    window.scrollTo(0, 0);
+    if (viewId === 'view-account') renderAccountView();
+    if (viewId === 'view-staff') renderStaffTable();
+  }
+
+  function goHome(){ showView('view-landing'); }
+  function openTrackModal(){ openModal('track-modal'); }
+
+  function scrollToDropoff(){
+    showView('view-landing');
+    setTimeout(() => {
+      const el = document.getElementById('dropoff-section');
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }, 30);
+  }
+
+  /* Staff Authentication */
+  function handleStaffNav(){
+    if (location.pathname !== '/admin') {
+      location.assign('/admin');
+      return;
+    }
+    if (IS_STAFF_LOGGED_IN){
+      showView('view-staff');
+    } else {
+      document.getElementById('staff-login-error').classList.add('hidden');
+      openModal('staff-login-modal');
+    }
+  }
+
+  function submitStaffLogin(){
+    document.getElementById('staff-login-error').textContent = 'Secure login is still initializing. Please try again.';
+    document.getElementById('staff-login-error').classList.remove('hidden');
+  }
+
+  function staffLogOut(){
+    IS_STAFF_LOGGED_IN = false;
+    goHome();
+  }
+
+  /* ACCOUNTS + SESSION */
+  let ACCOUNTS = [];
+  let CURRENT_USER = null;
+  function saveAccounts(){ /* Production accounts are stored in Supabase. */ }
+
+  function updateAccountNavButton(){
+    const btn = document.getElementById('account-nav-btn');
+    const btnMobile = document.getElementById('account-nav-btn-mobile');
+    const text = CURRENT_USER ? "My Account" : "Log In";
+    if(btn) btn.textContent = text;
+    if(btnMobile) btnMobile.textContent = text;
+  }
+
+  function onAccountNavClick(){
+    if (CURRENT_USER) { showView('view-account'); }
+    else { openLoginModal(); }
+  }
+
+  function openLoginModal(){
+    switchAuthTab('login');
+    document.getElementById('login-error').classList.add('hidden');
+    document.getElementById('create-error').classList.add('hidden');
+    openModal('auth-modal');
+  }
+
+  function switchAuthTab(tab){
+    const loginTab = document.getElementById('auth-tab-login');
+    const createTab = document.getElementById('auth-tab-create');
+    const loginPanel = document.getElementById('auth-panel-login');
+    const createPanel = document.getElementById('auth-panel-create');
+    if (tab === 'login'){
+      loginPanel.classList.remove('hidden'); createPanel.classList.add('hidden');
+      loginTab.style.borderBottomColor = 'var(--primary)'; loginTab.style.color = 'var(--ink)';
+      createTab.style.borderBottomColor = 'transparent'; createTab.style.color = 'var(--faint)';
+    } else {
+      createPanel.classList.remove('hidden'); loginPanel.classList.add('hidden');
+      createTab.style.borderBottomColor = 'var(--primary)'; createTab.style.color = 'var(--ink)';
+      loginTab.style.borderBottomColor = 'transparent'; loginTab.style.color = 'var(--faint)';
+    }
+  }
+
+  function submitLogin(){
+    if (!window.__LAUNDRY_PRODUCTION_READY__) { alert('Secure login is unavailable. Please refresh and try again.'); return; }
+    const phone = document.getElementById('login-phone').value.trim();
+    const passcode = document.getElementById('login-passcode').value;
+    const match = ACCOUNTS.find(a => a.phone === phone && a.passcode === passcode);
+    const errEl = document.getElementById('login-error');
+    if (!match){
+      errEl.textContent = "No account matches that phone number and passcode.";
+      errEl.classList.remove('hidden');
+      return;
+    }
+    CURRENT_USER = match;
+    localStorage.setItem('lt_session', phone);
+    updateAccountNavButton();
+    closeModal('auth-modal');
+    showView('view-account');
+  }
+
+  function submitCreateAccount(){
+    if (!window.__LAUNDRY_PRODUCTION_READY__) { alert('Secure account creation is unavailable. Please refresh and try again.'); return; }
+    const name = document.getElementById('create-name').value.trim();
+    const phone = document.getElementById('create-phone').value.trim();
+    const passcode = document.getElementById('create-passcode').value;
+    const confirm = document.getElementById('create-passcode-confirm').value;
+    const errEl = document.getElementById('create-error');
+    if (!name || !phone || !passcode){
+      errEl.textContent = "Please fill in all fields.";
+      errEl.classList.remove('hidden'); return;
+    }
+    if (passcode !== confirm){
+      errEl.textContent = "Passcodes do not match.";
+      errEl.classList.remove('hidden'); return;
+    }
+    const account = {name, phone, passcode};
+    ACCOUNTS.push(account);
+    saveAccounts();
+    CURRENT_USER = account;
+    localStorage.setItem('lt_session', phone);
+    updateAccountNavButton();
+    closeModal('auth-modal');
+    showView('view-account');
+  }
+
+  function logOut(){
+    CURRENT_USER = null;
+    localStorage.removeItem('lt_session');
+    updateAccountNavButton();
+    goHome();
+  }
+
+  function renderAccountView(){
+    if (!CURRENT_USER){
+      document.getElementById('account-orders-list').innerHTML = `<p class="text-[14px]" style="color:var(--sub);">Please log in to view orders.</p>`;
+      return;
+    }
+    document.getElementById('account-welcome-msg').textContent = `Welcome back, ${CURRENT_USER.name}.`;
+    const orders = ORDERS.filter(o => o.phone === CURRENT_USER.phone);
+    const list = document.getElementById('account-orders-list');
+    if (orders.length === 0){
+      list.innerHTML = `<div class="panel p-6 text-[14px] text-center" style="color:var(--sub);">No orders found under this phone number.</div>`;
+      return;
+    }
+    list.innerHTML = orders.map(o => `
+      <div class="panel p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2"><div class="font-mono font-medium text-[13px]">${o.code}</div><button type="button" onclick="copyCode('${o.code}', this)" class="text-[10px] text-stone-500 hover:text-stone-900">Copy</button></div>
+          <div class="text-[12px] mt-1" style="color:var(--sub);">${o.date} · ${o.weight} Qty/lbs · ${o.type}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          ${statusChip(o.status)}
+          ${paymentChip(o.payment)}
+        </div>
+        <div class="font-mono font-medium text-[14px]">$${o.total.toLocaleString()} GYD</div>
+        <button onclick="openReceiptModal('${o.code}')" class="btn btn-outline text-[12px] px-4 py-2">View Receipt</button>
+      </div>
+    `).join("");
+  }
+
+  /* ORDERS */
+  const SEED_ORDERS = [
+    { code:"K7M2Q9", name:"Marcus Persaud", phone:"5926001234", weight:1, rate:300, total:300, status:"Received", notes:"1 regular batch", type:"Self-Service Drop-Off", date:"2026-08-04", photo:"https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=200&q=80", payment:{method:"Cash", status:"Pay at Pickup"} },
+    { code:"T4R8N2", name:"Devi Singh", phone:"5926224567", weight:2, rate:5000, total:10000, status:"Ready for Pick-Up", notes:"2 comforters", type:"Scheduled Pickup", date:"2026-08-04", photo:"https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=200&q=80", payment:{method:"Cash", status:"Paid"} }
+  ];
+  let ORDERS = [];
+  let ARCHIVED_ORDERS = [];
+  
+  function saveOrders(){ /* Production orders are stored in Supabase. */ }
+  function saveArchive(){ /* Production orders are stored in Supabase. */ }
+
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  function generateCode(len=6){
+    let code;
+    do {
+      code = Array.from({length:len}, () => CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]).join('');
+    } while (ORDERS.some(o => o.code === code) || ARCHIVED_ORDERS.some(o => o.code === code));
+    return code;
+  }
+
+  function statusChip(status){
+    const map = {"Received":"received","Washing":"washing","Drying":"drying","Ready for Pick-Up":"ready","Picked Up (Archived)":"archived","Cancelled/Refunded":"cancelled"};
+    return `<span class="chip chip-${map[status] || 'received'}">${status}</span>`;
+  }
+
+  function paymentChip(payment){
+    const map = {"Paid":"paid","Pending Confirmation":"pendingpay","Pay at Pickup":"pickup"};
+    return `<span class="chip chip-${map[payment.status] || 'pickup'}">${payment.method} · ${payment.status}</span>`;
+  }
+
+  let dropoffPhotoBase64 = null;
+
+  document.getElementById('dropoff-photo-input').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if (file){
+      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { alert('Please upload a JPG, PNG, or WebP image.'); e.target.value=''; return; }
+      if (file.size > 5 * 1024 * 1024) { alert('The scale photo must be smaller than 5 MB.'); e.target.value=''; return; }
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        dropoffPhotoBase64 = ev.target.result;
+        document.getElementById('dropoff-photo-preview').innerHTML = `<img src="${dropoffPhotoBase64}" class="w-full h-full object-cover">`;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  let PENDING_ORDER = null;
+
+  document.getElementById('dropoff-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    const items=getOrderItems('dropoff');
+    if(!items.length){ alert('Please add at least one laundry service.'); return; }
+    const total=items.reduce((sum,x)=>sum+x.total,0);
+    PENDING_ORDER = {
+      code: generateCode(), name: document.getElementById('dropoff-name').value.trim(),
+      phone: document.getElementById('dropoff-phone').value.trim(), items, total,
+      weight:items.map(x=>`${x.qty} ${x.unit}`).join(', '), rate:null,
+      notes: document.getElementById('dropoff-notes').value.trim() || "Standard dropoff mix",
+      type:"Self-Service Drop-Off", date:new Date().toISOString().split('T')[0], photo:dropoffPhotoBase64
+    };
+    openPaymentFlow();
+  });
+
+  document.getElementById('online-order-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    const items=getOrderItems('online');
+    if(!items.length){ alert('Please add at least one laundry service.'); return; }
+    const total=items.reduce((sum,x)=>sum+x.total,0);
+    PENDING_ORDER = {
+      code: generateCode(), name: document.getElementById('online-name').value.trim(),
+      phone: document.getElementById('online-phone').value.trim(), items, total,
+      weight:items.map(x=>`${x.qty} ${x.unit}`).join(', '), rate:null,
+      notes: document.getElementById('online-notes').value.trim() || "Scheduled Pickup",
+      type:"Scheduled Pickup", date:document.getElementById('online-date').value || new Date().toISOString().split('T')[0],
+      photo:null
+    };
+    openPaymentFlow();
+  });
+
+  /* POS */
+  function openPosModal(){
+    const box = document.getElementById('pos-items');
+    if (box && box.children.length === 0) addOrderItem('pos');
+    updateOrderBuilder('pos');
+    openModal('pos-modal');
+  }
+
+  document.getElementById('pos-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    const items = getOrderItems('pos');
+    if (!items.length) { alert('Please add at least one laundry service.'); return; }
+    const total = items.reduce((sum, x) => sum + x.total, 0);
+    const newOrder = {
+      code: generateCode(),
+      name: document.getElementById('pos-name').value.trim(),
+      phone: document.getElementById('pos-phone').value.trim(),
+      items,
+      weight: items.map(x => `${x.qty} ${x.unit}`).join(', '),
+      rate: null,
+      total,
+      notes: document.getElementById('pos-notes').value.trim() || "In-store POS Entry",
+      type: "In-Store Walk-In POS",
+      date: new Date().toISOString().split('T')[0],
+      photo: "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=200&q=80",
+      payment: {
+        method: document.getElementById('pos-payment-method').value,
+        status: document.getElementById('pos-payment-status').value
+      },
+      status: "Received"
+    };
+    ORDERS.unshift(newOrder);
+    saveOrders();
+    renderStaffTable();
+    closeModal('pos-modal');
+    const box = document.getElementById('pos-items');
+    if (box) box.innerHTML = '';
+    document.getElementById('pos-form').reset();
+    openReceiptModal(newOrder.code);
+  });
+
+  /* MIX & MATCH ORDER BUILDER */
+  const SERVICE_OPTIONS = [
+    {group:'Wash – Dry – Fold', label:'Regular Laundry', rate:300, unit:'lb'},
+    {group:'Wash – Dry – Fold', label:'Bed Sheets', rate:350, unit:'lb'},
+    {group:'Wash – Dry – Fold', label:'Comforters', rate:5000, unit:'each'},
+    {group:'Wash – Dry – Fold', label:'Regular Pillows', rate:800, unit:'each'},
+    {group:'Wash – Dry – Fold', label:'Curtains', rate:600, unit:'panel'},
+    {group:'Ironing', label:'Suits', rate:2000, unit:'each'},
+    {group:'Ironing', label:'Denim', rate:2000, unit:'each'},
+    {group:'Ironing', label:'Dress', rate:2000, unit:'each'},
+    {group:'Ironing', label:'Curtains (Ironing)', rate:2500, unit:'panel'}
+  ];
+  const money = n => `$${Number(n || 0).toLocaleString()} GYD`;
+
+  function serviceOptionsHtml(selected=0){
+    return SERVICE_OPTIONS.map((x,i)=>`<option value="${i}" ${i===selected?'selected':''}>${x.label} — $${x.rate.toLocaleString()}/${x.unit}</option>`).join('');
+  }
+
+  function addOrderItem(type){
+    const box=document.getElementById(`${type}-items`);
+    if(!box) return;
+    const row=document.createElement('div');
+    row.className='grid grid-cols-[minmax(0,1fr)_92px_32px] gap-2 items-center';
+    row.dataset.item='1';
+    row.innerHTML=`<select class="field text-[12px] service-select">${serviceOptionsHtml()}</select>
+      <input type="number" min="0.5" step="0.5" value="1" class="field font-mono text-[12px] service-qty" aria-label="Quantity">
+      <button type="button" class="btn btn-outline p-2 text-[14px] remove-service" title="Remove">×</button>`;
+    box.appendChild(row);
+    row.querySelector('.service-select').addEventListener('change',()=>updateOrderBuilder(type));
+    row.querySelector('.service-qty').addEventListener('input',()=>updateOrderBuilder(type));
+    row.querySelector('.remove-service').addEventListener('click',()=>{ if(box.children.length>1){row.remove();updateOrderBuilder(type);} });
+    updateOrderBuilder(type);
+  }
+
+  function getOrderItems(type){
+    return [...document.querySelectorAll(`#${type}-items [data-item]`)].map(row=>{
+      const idx=Number(row.querySelector('.service-select').value);
+      const qty=Math.max(0,parseFloat(row.querySelector('.service-qty').value)||0);
+      const s=SERVICE_OPTIONS[idx];
+      return {label:s.label, rate:s.rate, unit:s.unit, qty, total:s.rate*qty};
+    }).filter(x=>x.qty>0);
+  }
+
+  function updateOrderBuilder(type){
+    const items=getOrderItems(type);
+    const total=items.reduce((sum,x)=>sum+x.total,0);
+    if(type==='dropoff'){
+      const labels=items.map(x=>`${x.label} × ${x.qty}`).join(', ')||'No services';
+      const wt=items.map(x=>`${x.qty} ${x.unit}`).join(', ')||'0';
+      const catEl=document.getElementById('dropoff-preview-category');
+      const wtEl=document.getElementById('dropoff-preview-weight');
+      const totEl=document.getElementById('dropoff-preview-total');
+      if(catEl) catEl.textContent=labels;
+      if(wtEl) wtEl.textContent=wt;
+      if(totEl) totEl.textContent=money(total);
+    } else if(type==='online'){
+      const el=document.getElementById('online-calculated-cost');
+      if(el) el.textContent=money(total);
+    } else if(type==='pos'){
+      const el=document.getElementById('pos-total-display');
+      if(el) el.textContent=money(total);
+    } else if(type==='calc'){
+      const el=document.getElementById('calc-total');
+      if(el) el.textContent=money(total);
+    }
+  }
+
+  function initOrderBuilders(){
+    if(document.getElementById('dropoff-items')?.children.length===0) addOrderItem('dropoff');
+    if(document.getElementById('online-items')?.children.length===0) addOrderItem('online');
+    if(document.getElementById('calc-items')?.children.length===0) addOrderItem('calc');
+  }
+  initOrderBuilders();
+
+  /* PAYMENT FLOW */
+  function openPaymentFlow(){
+    document.getElementById('payment-choose-total').textContent = `$${PENDING_ORDER.total.toLocaleString()} GYD`;
+    document.getElementById('mmg-reference').textContent = PENDING_ORDER.code;
+    showPaymentStep('choose');
+    openModal('payment-flow-modal');
+  }
+
+  function showPaymentStep(step){
+    ['choose','mmg','done'].forEach(s => {
+      const panel = document.getElementById(`payment-step-${s}`);
+      if (panel) panel.classList.toggle('hidden', s !== step);
+    });
+  }
+
+  function selectPaymentMethod(method){
+    if (method === 'Cash'){ finalizeOrder({method:'Cash', status:'Pay at Pickup'}); }
+    else if (method === 'MMG'){ showPaymentStep('mmg'); }
+  }
+
+  function confirmMmgSent(){
+    const ref=document.getElementById('payment-mmg-proof-ref').value.trim();
+    if(!ref){ alert('Please enter the MMG transaction reference code.'); return; }
+    finalizeOrder({method:'MMG',status:'Pending Confirmation',reference:ref});
+  }
+
+  function finalizeOrder(paymentInfo){
+    const order = {...PENDING_ORDER, payment: paymentInfo, status: "Received"};
+    ORDERS.unshift(order);
+    saveOrders();
+    renderStaffTable();
+    renderDoneStep(order);
+    showPaymentStep('done');
+    document.getElementById('dropoff-form').reset();
+    document.getElementById('online-order-form').reset();
+    const dropoffBox = document.getElementById('dropoff-items');
+    if (dropoffBox) dropoffBox.innerHTML = '';
+    const onlineBox = document.getElementById('online-items');
+    if (onlineBox) onlineBox.innerHTML = '';
+    initOrderBuilders();
+  }
+
+  async function copyCode(code, button=null) {
+    const text=String(code||'');
+    let copied=false;
+    try {
+      if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); copied=true; }
+    } catch(e) {}
+    if(!copied){
+      const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { copied=document.execCommand('copy'); } catch(e) {}
+      ta.remove();
+    }
+    if(button){ const old=button.innerText; button.innerText=copied?'Copied':'Copy failed'; setTimeout(()=>button.innerText=old,1400); }
+    else if(!copied) alert('Copy is not available on this device. Please press and hold the code to copy it.');
+  }
+
+  function renderDoneStep(order){
+    const container = document.getElementById('payment-step-done');
+    container.innerHTML = `
+      <div class="pb-3 mb-4 text-center" style="border-bottom:1px solid var(--line);">
+        <div class="text-[11px] uppercase tracking-[0.12em] font-medium" style="color:var(--faint);">Order Confirmed</div>
+      </div>
+      <div class="ticket p-5 text-center">
+        <div class="text-[10px] uppercase tracking-[0.14em]" style="color:var(--faint);">Tracking Code</div>
+        <div class="flex items-center justify-center gap-2 mt-2">
+          <div class="ticket-code text-2xl font-medium">${order.code}</div>
+          <button onclick="copyCode('${order.code}')" class="p-1.5 border border-stone-200 hover:bg-stone-50 transition" title="Copy">📋</button>
+        </div>
+        <div class="ticket-divider"></div>
+        <div class="text-left text-[12px] space-y-1 mb-3">${(order.items||[]).map(i=>`<div class="flex justify-between"><span>${i.label} × ${i.qty}</span><span>${money(i.total)}</span></div>`).join('')}</div>
+        <div class="flex justify-center gap-2">${statusChip(order.status)}${paymentChip(order.payment)}</div>
+      </div>
+      <button onclick="closeModal('payment-flow-modal')" class="btn btn-outline w-full py-2.5 text-[12px] mt-4">Close</button>
+    `;
+  }
+
+  /* TRACK */
+  function trackOrder(){
+    const input = document.getElementById('track-code-input');
+    const code = input.value.trim().toUpperCase();
+    const resultEl = document.getElementById('track-result');
+    const order = ORDERS.find(o => o.code === code) || ARCHIVED_ORDERS.find(o => o.code === code);
+    
+    if (!order){
+      resultEl.innerHTML = `<p class="text-[12px] mt-4 text-red-700">No order found with code ${code}.</p>`;
+      return;
+    }
+    resultEl.innerHTML = `
+      <div class="ticket p-5 mt-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2"><div class="ticket-code text-base">${order.code}</div><button type="button" onclick="copyCode('${order.code}', this)" class="text-[10px] text-stone-500">Copy</button></div>
+          ${paymentChip(order.payment)}
+        </div>
+        <div class="my-2">${statusChip(order.status)}</div>
+        <div class="ticket-divider"></div>
+        <div class="flex justify-between text-[13px]"><span style="color:var(--faint);">Qty/Weight</span><span class="font-medium">${order.weight}</span></div>
+        <div class="flex justify-between text-[13px] mt-1"><span style="color:var(--faint);">Total</span><span class="font-medium">$${order.total.toLocaleString()} GYD</span></div>
+      </div>
+    `;
+  }
+
+  /* STAFF OPS: DISCOUNT, EDIT, CANCEL */
+  function openDiscountModal() {
+    openModal('discount-modal');
+  }
+
+  function applyDiscount() {
+    const pin = document.getElementById('discount-pin').value;
+    if(pin !== '1234') { 
+      alert('Invalid PIN. Authorized staff only.'); 
+      return; 
+    }
+    const code = document.getElementById('discount-code').value.trim().toUpperCase();
+    const val = parseFloat(document.getElementById('discount-val').value) || 0;
+    const type = document.getElementById('discount-type').value;
+
+    const order = ORDERS.find(o => o.code === code) || ARCHIVED_ORDERS.find(o => o.code === code);
+    if(!order) { 
+      alert('Order not found.'); 
+      return; 
+    }
+    
+    if(type === 'percent') {
+      order.total = order.total - (order.total * (val / 100));
+    } else {
+      order.total = Math.max(0, order.total - val);
+    }
+    
+    saveOrders();
+    saveArchive();
+    renderStaffTable();
+    closeModal('discount-modal');
+    alert('Discount applied successfully. New total: $' + order.total.toLocaleString() + ' GYD');
+  }
+
+  function cancelRefundOrder(code) {
+    if(confirm('Are you sure you want to Cancel or Refund order ' + code + '?')) {
+      const order = ORDERS.find(o => o.code === code);
+      if(order) {
+        order.status = "Cancelled/Refunded";
+        saveOrders(); 
+        renderStaffTable();
+      } else {
+        alert("Order is already archived.");
+      }
+    }
+  }
+
+  function openEditModal(code) {
+    const order = ORDERS.find(o => o.code === code) || ARCHIVED_ORDERS.find(o => o.code === code);
+    if(!order) return;
+    
+    document.getElementById('edit-code').value = code;
+    document.getElementById('edit-code-display').textContent = code;
+    document.getElementById('edit-name').value = order.name;
+    document.getElementById('edit-weight').value = order.weight;
+    document.getElementById('edit-notes').value = order.notes || '';
+    
+    openModal('edit-order-modal');
+  }
+
+  function saveEditOrder() {
+    const code = document.getElementById('edit-code').value;
+    const order = ORDERS.find(o => o.code === code) || ARCHIVED_ORDERS.find(o => o.code === code);
+    if(order) {
+      order.name = document.getElementById('edit-name').value.trim();
+      order.weight = parseFloat(document.getElementById('edit-weight').value) || 1;
+      order.notes = document.getElementById('edit-notes').value.trim();
+      
+      saveOrders();
+      saveArchive();
+      renderStaffTable();
+      closeModal('edit-order-modal');
+    }
+  }
+
+  function updateOrderStatus(code, newStatus){
+    const item = ORDERS.find(o => o.code === code);
+    if (item){ item.status = newStatus; saveOrders(); renderStaffTable(); }
+  }
+  
+  function markPaid(code){
+    const item = ORDERS.find(o => o.code === code);
+    if (item){ item.payment.status = "Paid"; saveOrders(); renderStaffTable(); }
+  }
+  
+  function archiveOrder(code) {
+    const orderIndex = ORDERS.findIndex(o => o.code === code);
+    if (orderIndex > -1) {
+      let order = ORDERS[orderIndex];
+      order.status = "Picked Up (Archived)";
+      ORDERS.splice(orderIndex, 1);
+      ARCHIVED_ORDERS.unshift(order);
+      saveOrders();
+      saveArchive();
+      renderStaffTable();
+    }
+  }
+
+  function sendWhatsAppAlert(code){
+    const o = ORDERS.find(item => item.code === code) || ARCHIVED_ORDERS.find(item => item.code === code);
+    if (!o) return;
+    const msg = `Hi ${o.name}, your laundry order #${o.code} at ${CONFIG.name} status is now: ${o.status}. Total: $${o.total.toLocaleString()} GYD.`;
+    const url = `https://wa.me/${o.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  }
+  
+  function openReceiptModal(code){
+    const o = ORDERS.find(item => item.code === code) || ARCHIVED_ORDERS.find(item => item.code === code);
+    if (!o) return;
+    document.getElementById('receipt-details').innerHTML = `
+      <div class="flex items-center gap-2"><strong>CODE:</strong> <span class="font-mono">${o.code}</span> <button type="button" onclick="copyCode('${o.code}', this)" class="text-[10px] text-stone-500">Copy</button></div>
+      <div><strong>DATE:</strong> ${o.date}</div>
+      <div><strong>CUSTOMER:</strong> ${o.name}</div>
+      <div><strong>PHONE:</strong> ${o.phone}</div>
+      <div><strong>DESCRIPTION:</strong> ${o.notes}</div>
+      <div><strong>QTY/WEIGHT:</strong> ${o.weight}</div>
+      <div><strong>PAYMENT:</strong> ${o.payment.method} — ${o.payment.status}</div>
+      ${o.payment.method === 'MMG' ? `<div class="pt-2" style="border-top:1px solid var(--line);"><strong>MMG REFERENCE:</strong> ${o.payment.reference || 'Not provided'}</div>` : ''}
+      <div class="pt-2 font-medium" style="border-top:1px solid var(--line);">TOTAL: $${o.total.toLocaleString()} GYD</div>
+    `;
+    openModal('receipt-modal');
+  }
+
+  function renderStaffTable(){
+    const query = (document.getElementById('staff-search-input')?.value || '').toLowerCase();
+    const tbody = document.getElementById('staff-tracker-table');
+    if(!tbody) return;
+    
+    let displayOrders = [];
+    if(query) {
+      displayOrders = [...ORDERS, ...ARCHIVED_ORDERS].filter(o => 
+        o.code.toLowerCase().includes(query) || o.phone.includes(query)
+      );
+    } else {
+      displayOrders = [...ORDERS];
+    }
+
+    if(displayOrders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-stone-400 text-[13px]">No orders found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = displayOrders.map(o => {
+      const isArchived = o.status === "Picked Up (Archived)";
+      const isCancelled = o.status === "Cancelled/Refunded";
+      return `
+        <tr style="border-bottom:1px solid var(--line); ${isArchived || isCancelled ? 'opacity: 0.65; background: #FAFAF9;' : ''}">
+          <td class="py-3.5 px-4"><div class="flex items-center gap-2 font-mono font-medium text-[12px]"><span>${o.code}</span><button type="button" onclick="copyCode('${o.code}', this)" class="text-[10px] font-sans text-stone-500">Copy</button></div></td>
+          <td class="py-3.5 px-4">${o.name}<br><span class="text-[10px]" style="color:var(--faint);">${o.type}</span></td>
+          <td class="py-3.5 px-4 font-mono text-[12px]">${o.phone}</td>
+          <td class="py-3.5 px-4">${o.weight}<br><span class="text-[10px] italic" style="color:var(--faint);">${o.notes}</span></td>
+          <td class="py-3.5 px-4 font-mono font-medium">$${o.total.toLocaleString()}</td>
+          <td class="py-3.5 px-4">
+            ${paymentChip(o.payment)}
+            ${!isArchived && !isCancelled && o.payment.status !== 'Paid' ? `<button onclick="markPaid('${o.code}')" class="btn btn-outline text-[10px] px-2 py-1 mt-1 block">Mark Paid</button>` : ''}
+          </td>
+          <td class="py-3.5 px-4">
+            ${isArchived || isCancelled 
+              ? `<span class="chip chip-${isArchived ? 'archived' : 'cancelled'}">${o.status}</span>` 
+              : `<select onchange="updateOrderStatus('${o.code}', this.value)" class="field text-[11px] py-1.5 px-2">
+                  <option value="Received" ${o.status === 'Received' ? 'selected' : ''}>Received</option>
+                  <option value="Washing" ${o.status === 'Washing' ? 'selected' : ''}>Washing</option>
+                  <option value="Drying" ${o.status === 'Drying' ? 'selected' : ''}>Drying</option>
+                  <option value="Ready for Pick-Up" ${o.status === 'Ready for Pick-Up' ? 'selected' : ''}>Ready for Pick-Up</option>
+                </select>`
+            }
+          </td>
+          <td class="py-3.5 px-4 space-y-1.5 min-w-[120px]">
+            <div class="flex items-center gap-1.5">
+              <button onclick="sendWhatsAppAlert('${o.code}')" class="btn btn-accent staff-action-btn">WhatsApp</button>
+              <button onclick="openReceiptModal('${o.code}')" class="btn btn-outline staff-action-btn">Print</button>
+            </div>
+            ${o.photo ? `<button onclick="openScalePhoto('${o.code}')" class="btn btn-outline text-[11px] min-h-[40px] w-full">View Scale Photo</button>` : ''}
+            ${!isArchived && !isCancelled ? `
+            <div class="flex items-center gap-2 mt-1">
+              <button onclick="openEditModal('${o.code}')" class="btn btn-outline staff-action-btn">Edit</button>
+              <button onclick="cancelRefundOrder('${o.code}')" class="btn btn-danger-outline staff-action-btn">Cancel/Refund</button>
+            </div>
+            ` : ''}
+            ${!isArchived && !isCancelled && o.status === 'Ready for Pick-Up' ? `<button onclick="archiveOrder('${o.code}')" class="btn btn-primary text-[11px] min-h-[40px] w-full mt-1">Picked Up</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  /* SUBSCRIPTION & CHECKOUT FLOW */
+  function openInvestModal(planName, price) {
+    const livePrice = planName === 'Monthly Package' ? CONFIG.monthlyPackagePrice : planName === 'Standard Package' ? CONFIG.standardPackagePrice : price;
+    activePlan = { name: planName, price: livePrice };
+    document.getElementById('modal-plan-title').innerText = planName;
+    document.getElementById('modal-plan-price').innerText = '$' + livePrice.toLocaleString() + ' GYD' + (planName === 'Monthly Package' ? ' / month' : ' one-time');
+    
+    document.getElementById('step-choose-pay').classList.remove('hidden');
+    document.getElementById('step-invest-account').classList.add('hidden');
+    document.getElementById('step-invest-success').classList.add('hidden');
+    document.getElementById('invest-mmg-alert').classList.add('hidden');
+    document.getElementById('invest-mmg-proof').classList.add('hidden');
+    const proofRef=document.getElementById('invest-mmg-proof-ref'); if(proofRef) proofRef.value='';
+    selectedPaymentMethod = null;
+
+    openModal('invest-modal');
+  }
+
+  function closeInvestModal() {
+    closeModal('invest-modal');
+  }
+
+  function selectInvestPay(method) {
+    selectedPaymentMethod = method;
+    document.getElementById('step-choose-pay').classList.add('hidden');
+    document.getElementById('step-invest-account').classList.remove('hidden');
+    
+    if(method === 'MMG') {
+      document.getElementById('invest-mmg-alert').classList.remove('hidden');
+      document.getElementById('invest-mmg-proof').classList.remove('hidden');
+    } else {
+      document.getElementById('invest-mmg-alert').classList.add('hidden');
+      document.getElementById('invest-mmg-proof').classList.add('hidden');
+    }
+  }
+
+  function handleAccountSubmit(e) {
+    e.preventDefault();
+    if (!window.__LAUNDRY_PRODUCTION_READY__) { alert('Secure checkout is unavailable. Please refresh and try again.'); return; }
+    if(selectedPaymentMethod==='MMG'){
+      const ref=document.getElementById('invest-mmg-proof-ref').value.trim();
+      if(!ref){ alert('Please enter the MMG transaction reference code.'); return; }
+    }
+    const userData={name:document.getElementById('acc-name').value.trim(),phone:document.getElementById('acc-phone').value.trim(),address:document.getElementById('acc-address').value.trim(),passcode:document.getElementById('acc-pass').value};
+    const safetyCode=generateCode(6);
+    userData.backupCode=safetyCode;
+    const finishAccount=()=>{
+      if(selectedPaymentMethod==='MMG') userData.mmgPaymentProof={reference:document.getElementById('invest-mmg-proof-ref').value.trim(),status:'Pending Confirmation'};
+      localStorage.setItem('spin_scale_user',JSON.stringify(userData));
+      const existing=ACCOUNTS.find(a=>a.phone===userData.phone);
+      if(existing){ Object.assign(existing,userData); } else { ACCOUNTS.push(userData); }
+      saveAccounts(); CURRENT_USER=existing||userData; localStorage.setItem('lt_session',userData.phone); updateAccountNavButton();
+      const subscriptionOrder={
+        code:generateCode(), name:userData.name, phone:userData.phone,
+        weight:'40 lbs/week', rate:activePlan.price, total:activePlan.price,
+        items:[{label:'Monthly Package',rate:activePlan.price,unit:'month',qty:1,total:activePlan.price}],
+        notes:'Wash & Fold · Once per week · Free premium detergent · Up to 40 lbs per week',
+        type:'Monthly Subscription', date:new Date().toISOString().split('T')[0],
+        photo:null, status:'Received',
+        payment:{method:selectedPaymentMethod, status:selectedPaymentMethod==='MMG'?'Pending Confirmation':'Pay at Pickup', reference:selectedPaymentMethod==='MMG'?document.getElementById('invest-mmg-proof-ref').value.trim():''}
+      };
+      ORDERS.unshift(subscriptionOrder); saveOrders(); renderStaffTable();
+      document.getElementById('acc-backup-code').innerText=safetyCode;
+      document.getElementById('step-invest-account').classList.add('hidden');
+      document.getElementById('step-invest-success').classList.remove('hidden');
+    };
+    finishAccount();
+  }
+
+  /* INIT */
+  applyConfig();
+  renderStaffTable();
+
+  updateAccountNavButton();
+</script>
+<!-- Production data/authentication layer. Run supabase-schema.sql first. -->
+<script src="./laundry-loop.production.js"></script>
+</body>
+</html>
