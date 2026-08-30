@@ -26,7 +26,8 @@ type Inventory = {
 type Alert = { id: string; requester_email: string; created_at: string; resolved_at: string | null };
 type Summary = { period_days: number; orders: number; revenue: number; average_order_value: number; repeat_customers: number; busiest_hour: number | null; average_hours_to_ready: number | null };
 type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "content" | "services" | "team" | "security";
-type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string };
+type DiscountMode = "amount" | "percent";
+type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; discountMode: DiscountMode; discountValue: string };
 type SiteContent = {
   id: boolean; business_name: string; tagline: string; hero_eyebrow: string; hero_title: string; hero_emphasis: string;
   hero_description: string; address: string; directions: string; maps_url: string; phone: string; mmg_number: string;
@@ -35,7 +36,7 @@ type SiteContent = {
 
 const statuses = ["Received", "Washing", "Drying", "Ready for Pick-Up", "Picked Up (Archived)", "Cancelled/Refunded"];
 const paymentStatuses = ["Pay at Pickup", "Pending Confirmation", "Paid", "Refunded"];
-const emptyPos: PosState = { name: "", phone: "", notes: "", paymentMethod: "Cash", paymentStatus: "Pay at Pickup", paymentReference: "" };
+const emptyPos: PosState = { name: "", phone: "", notes: "", paymentMethod: "Cash", paymentStatus: "Pay at Pickup", paymentReference: "", discountMode: "amount", discountValue: "" };
 const money = (value: number | string | null | undefined) => `GYD ${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 const phoneDigits = (value: string) => {
   const digits = value.replace(/\D/g, "");
@@ -72,6 +73,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [pos, setPos] = useState(emptyPos);
   const [posItems, setPosItems] = useState<Array<{ service_id: string; qty: number }>>([{ service_id: "", qty: 1 }]);
   const [inventoryForm, setInventoryForm] = useState({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" });
+  const [inventoryItemForm, setInventoryItemForm] = useState({ name: "", unit: "", reorderLevel: "", openingStock: "" });
   const [identity, setIdentity] = useState<"affia" | "staff" | "">("");
   const [attendanceMode, setAttendanceMode] = useState<"in"|"out">("in");
   const [attendance, setAttendance] = useState<Attendance[]>([]);
@@ -169,9 +171,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     return matchesSearch && matchesStatus;
   }), [orders, search, statusFilter]);
 
-  const posTotal = useMemo(() => posItems.reduce((sum, row) => {
+  const posSubtotal = useMemo(() => posItems.reduce((sum, row) => {
     const service = services.find((item) => item.id === row.service_id); return sum + (service ? Number(service.rate) * Number(row.qty || 0) : 0);
   }, 0), [posItems, services]);
+  const posDiscount = useMemo(() => {
+    if (profile?.role === "staff") return 0;
+    const entered = Math.max(0, Number(pos.discountValue || 0));
+    const calculated = pos.discountMode === "percent" ? posSubtotal * Math.min(entered, 100) / 100 : entered;
+    return Math.min(posSubtotal, Math.round(calculated * 100) / 100);
+  }, [pos.discountMode, pos.discountValue, posSubtotal, profile?.role]);
+  const posTotal = Math.max(0, posSubtotal - posDiscount);
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -229,10 +238,15 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const items = posItems.map((row) => ({ service: services.find((item) => item.id === row.service_id), qty: Number(row.qty) })).filter((row) => row.service && row.qty > 0);
     if (!items.length) { setPosMessage("Choose at least one laundry service and enter a quantity."); setBusy(false); return; }
     if (pos.paymentMethod === "MMG" && !pos.paymentReference.trim()) { setPosMessage("Enter the MMG transaction reference so the payment can be verified."); setBusy(false); return; }
+    const enteredDiscount = Number(pos.discountValue || 0);
+    if (profile?.role !== "staff" && (!Number.isFinite(enteredDiscount) || enteredDiscount < 0 || (pos.discountMode === "percent" && enteredDiscount > 100) || posDiscount > posSubtotal)) {
+      setPosMessage(pos.discountMode === "percent" ? "Enter a percentage from 0 to 100." : "The discount cannot exceed the subtotal."); setBusy(false); return;
+    }
     const { data, error } = await supabase.rpc("staff_create_order", {
       p_name: pos.name.trim(), p_phone: phoneDigits(pos.phone),
       p_items: items.map((row) => ({ label: row.service!.name, qty: row.qty })), p_notes: pos.notes.trim(),
       p_payment: { method: pos.paymentMethod, status: pos.paymentStatus, reference: pos.paymentReference.trim() || null },
+      p_discount_gyd: profile?.role === "staff" ? 0 : posDiscount,
     });
     if (error) setPosMessage(`The order was not saved: ${error.message}`);
     else {
@@ -259,6 +273,20 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       p_quantity: Number(inventoryForm.quantity), p_unit_cost: inventoryForm.unitCost ? Number(inventoryForm.unitCost) : null, p_note: inventoryForm.note,
     });
     if (error) setMessage(error.message); else { setInventoryForm({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" }); await loadDashboard(); setMessage("Inventory movement recorded."); }
+    setBusy(false);
+  }
+
+  async function createInventoryItem(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    const reorderLevel = Number(inventoryItemForm.reorderLevel || 0);
+    const openingStock = Number(inventoryItemForm.openingStock || 0);
+    if (inventoryItemForm.name.trim().length < 2 || !inventoryItemForm.unit.trim()) { setMessage("Enter an item name and unit."); setBusy(false); return; }
+    if (!Number.isFinite(reorderLevel) || reorderLevel < 0 || !Number.isFinite(openingStock) || openingStock < 0) { setMessage("Reorder level and opening stock cannot be negative."); setBusy(false); return; }
+    const { error } = await supabase.rpc("admin_create_inventory_item", {
+      p_name: inventoryItemForm.name.trim(), p_unit: inventoryItemForm.unit.trim(), p_reorder_level: reorderLevel, p_opening_stock: openingStock,
+    });
+    if (error) setMessage(`Inventory item was not added: ${error.message}`);
+    else { setInventoryItemForm({ name: "", unit: "", reorderLevel: "", openingStock: "" }); await loadDashboard(); setMessage("New inventory item added."); }
     setBusy(false);
   }
 
@@ -350,9 +378,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <h1>{portal === "admin" ? "Admin sign in" : "Staff sign in"}</h1>
 <p className="muted">Authorized {portal === "admin" ? "administrators" : "team members"} only.</p>
 <form onSubmit={signIn}>
-<label>Email<input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+<label><span className="field-label">Email address</span><input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@business.com" required />
 </label>
-<label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+<label><span className="field-label">Password</span><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required />
 </label>
 <button type="submit" disabled={busy}>Sign in</button>
 </form>
@@ -511,12 +539,23 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </label>
 </div>
 {pos.paymentMethod === "MMG" && <label>MMG transaction reference<input value={pos.paymentReference} onChange={(e) => setPos({ ...pos, paymentReference: e.target.value })} placeholder="Required for verification" maxLength={120} required /></label>}
+{profile.role !== "staff" && <fieldset className="discount-box">
+<legend>Order discount</legend>
+<div className="discount-grid">
+<label>Discount type<select value={pos.discountMode} onChange={(e) => setPos({ ...pos, discountMode: e.target.value as DiscountMode, discountValue: "" })}>
+<option value="amount">Fixed amount (GYD)</option>
+<option value="percent">Percentage (%)</option>
+</select></label>
+<label>{pos.discountMode === "percent" ? "Percentage" : "Discount amount"}<input type="number" min="0" max={pos.discountMode === "percent" ? 100 : posSubtotal} step={pos.discountMode === "percent" ? "0.1" : "1"} value={pos.discountValue} onChange={(e) => setPos({ ...pos, discountValue: e.target.value })} placeholder={pos.discountMode === "percent" ? "e.g. 10" : "e.g. 500"}/></label>
+</div>
+<p>Supervisor/administrator only. The final GYD discount is recorded on the receipt and in reports.</p>
+</fieldset>}
 {posMessage && <p className="form-error" role="alert">{posMessage}</p>}
 <button className="primary-wide" type="submit" disabled={busy}>Create order & receipt</button>
 </form>
 <aside className="panel total-card">
-<p className="eyebrow">Order total</p>
-<strong>{money(posTotal)}</strong>
+<p className="eyebrow">Order summary</p>
+<dl className="pos-total-breakdown"><div><dt>Subtotal</dt><dd>{money(posSubtotal)}</dd></div>{posDiscount > 0 && <div><dt>Discount</dt><dd>− {money(posDiscount)}</dd></div>}<div className="grand-total"><dt>Total</dt><dd>{money(posTotal)}</dd></div></dl>
 <p>Prices come from the live service catalog. The receipt opens immediately after the order is saved.</p>
 <ul>
 <li>Cash and MMG supported</li>
@@ -535,6 +574,17 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <aside className="panel total-card"><p className="eyebrow">Failsafe checklist</p><h2>During an outage</h2><ul><li>Keep the tablet and router on the UPS.</li><li>Try the mobile hotspot if internet alone is down.</li><li>If both fail, issue a numbered paper receipt.</li><li>Record customer, phone, service, weight, payment and exact time.</li><li>Back-enter each receipt here once service returns.</li></ul></aside></section>}
 
       {view === "inventory" && <section>
+{isAdmin && <form className="panel add-inventory-form" onSubmit={createInventoryItem}>
+<div className="section-heading"><div><p className="eyebrow">Administrator only</p><h2>Add inventory item</h2></div><span className="badge">New stock line</span></div>
+<p className="muted">Create supplies that are not already listed. Existing names cannot be duplicated.</p>
+<div className="add-inventory-grid">
+<label>Item name<input value={inventoryItemForm.name} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, name: e.target.value })} placeholder="e.g. Stain remover" minLength={2} maxLength={80} required/></label>
+<label>Unit<input value={inventoryItemForm.unit} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, unit: e.target.value })} placeholder="litres, kg, each…" maxLength={30} required/></label>
+<label>Reorder level<input type="number" min="0" step="0.001" value={inventoryItemForm.reorderLevel} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, reorderLevel: e.target.value })} placeholder="0"/></label>
+<label>Opening stock<input type="number" min="0" step="0.001" value={inventoryItemForm.openingStock} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, openingStock: e.target.value })} placeholder="0"/></label>
+<button disabled={busy}>Add item</button>
+</div>
+</form>}
 <div className="inventory-grid">{inventory.map((item) => <article className={`panel stock-card ${Number(item.on_hand) <= Number(item.reorder_level) ? "low" : ""}`} key={item.item_id}>
 <div>
 <h3>{item.item_name}</h3>
@@ -751,9 +801,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 {profile.role!=="staff" && selectedOrder.status!=="Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({order:selectedOrder,type:selectedOrder.payment?.status==="Paid"?"refund":"cancel"}); setOrderActionReason(""); setSelectedOrder(null); }}>Cancel / Refund</button>}
 </div>
 {profile.role!=="staff" && <div className="discount-control">
-<label>Discount (GYD)<input id="receipt-discount" type="number" min="0" defaultValue={selectedOrder.discount || 0}/>
-</label>
-<button className="secondary" onClick={() => { const input = document.getElementById("receipt-discount") as HTMLInputElement; void patchOrder(selectedOrder, { discount: Number(input.value) }); setSelectedOrder(null); }}>Apply</button>
+<label>Discount type<select id="receipt-discount-type" defaultValue="amount"><option value="amount">Fixed GYD</option><option value="percent">Percentage</option></select></label>
+<label>Value<input id="receipt-discount" type="number" min="0" step="0.1" defaultValue={selectedOrder.discount || 0}/></label>
+<button className="secondary" onClick={() => { const input = document.getElementById("receipt-discount") as HTMLInputElement; const type = (document.getElementById("receipt-discount-type") as HTMLSelectElement).value; const entered = Number(input.value); const subtotal = Number(selectedOrder.subtotal ?? selectedOrder.total + Number(selectedOrder.discount || 0)); if (!Number.isFinite(entered) || entered < 0 || (type === "percent" && entered > 100)) { setMessage(type === "percent" ? "Enter a percentage from 0 to 100." : "Enter a valid discount amount."); return; } const amount = type === "percent" ? Math.round(subtotal * entered) / 100 : entered; if (amount > subtotal) { setMessage("The discount cannot exceed the order subtotal."); return; } void patchOrder(selectedOrder, { discount: amount }); setSelectedOrder(null); }}>Apply discount</button>
 </div>}
 </div>
 </div>}

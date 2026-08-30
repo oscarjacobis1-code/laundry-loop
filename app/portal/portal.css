@@ -27,6 +27,8 @@ label{display:grid;gap:7px;font-size:.84rem;font-weight:750}
 .login-card .brand{display:inline-block;margin-bottom:24px;color:var(--green);font-family:Georgia,serif;font-size:1.25rem;font-weight:800;text-decoration:none}
 .login-card form{display:grid;gap:17px;margin-top:24px}
 .login-card h1{font-size:2rem;margin-bottom:8px}
+.login-card label,.login-card .field-label{color:var(--ink)}
+.field-label{display:block;font-size:.82rem;font-weight:800;letter-spacing:.01em}
 .text-button{margin-top:14px;padding:5px 0;background:transparent;color:var(--green2)}
 .notice{margin:16px 0 0;padding:12px 14px;border-left:4px solid var(--gold);background:#fff8e8;border-radius:3px;color:#5f4b20}
 .staff-entry{position:relative;overflow:hidden;padding:35px 20px}.logo-watermark{position:absolute;inset:0;background:linear-gradient(rgba(4,13,42,.82),rgba(7,25,79,.9)),url('/laundry-loop-logo.jpg') center/680px no-repeat;filter:saturate(1.1)}
@@ -104,8 +106,22 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .total-card>strong{display:block;font-family:Georgia,serif;font-size:2rem}
 .total-card p,.total-card li{color:#c9d8d1;font-size:.83rem;line-height:1.55}
 .total-card ul{padding-left:18px}
+.discount-box{margin:0;padding:16px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.07)}
+.discount-box legend{padding:0 7px;color:#f0c974;font-weight:850}
+.discount-box p{margin:0 0 12px;color:#c9d8d1}
+.discount-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.discount-grid label{color:#fff}
+.pos-total-breakdown{display:grid;gap:9px;margin:20px 0 0;padding-top:17px;border-top:1px solid rgba(255,255,255,.2)}
+.pos-total-breakdown div{display:flex;justify-content:space-between;gap:18px}
+.pos-total-breakdown dt{color:#c9d8d1}
+.pos-total-breakdown dd{margin:0;font-weight:800}
+.pos-total-breakdown .grand-total{margin-top:5px;padding-top:13px;border-top:1px solid rgba(255,255,255,.2);font-family:Georgia,serif;font-size:1.4rem}
 
 .inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:13px}
+.add-inventory-form{margin-bottom:16px;border-top:4px solid var(--green2)}
+.add-inventory-form h2{margin:0}
+.add-inventory-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:12px;align-items:end;margin-top:18px}
+.add-inventory-grid button{min-height:43px;white-space:nowrap}
 .stock-card{display:grid;gap:16px}
 .stock-card h3{margin:0;font-size:1.1rem}
 .stock-card span{display:block;margin-top:5px;color:var(--muted);font-size:.72rem}
@@ -148,7 +164,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .bag-tag{display:none;width:72mm;padding:7mm;border:2px solid #111;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .bag-tag>*{display:block}.bag-tag>strong{font-family:Georgia,serif;font-size:16pt}.bag-tag .bag-code{margin:5mm 0 3mm;font-size:28pt;font-weight:900;letter-spacing:.08em}.bag-tag small{margin-top:2mm;font-size:10pt}
 .modal-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
-.discount-control{display:flex;align-items:end;gap:8px;margin-top:16px}
+.discount-control{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .photo-modal img{display:block;max-width:100%;max-height:75vh;margin:auto}
 .photo-modal p{text-align:center;color:var(--muted);font-size:.76rem}
 
@@ -164,6 +180,8 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .team-row>*:nth-child(n+3){grid-row:auto}
 .movement-grid{grid-template-columns:1fr 1fr}
 .movement-grid .wide{grid-column:span 1}
+.add-inventory-grid{grid-template-columns:1fr 1fr}
+.add-inventory-grid button{grid-column:1/-1}
 }
 
 @media(max-width:680px){.ops-main{padding:19px 13px 50px}
@@ -173,6 +191,8 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .toolbar input{grid-column:1/-1}
 .queue-summary{grid-template-columns:1fr 1fr}
 .form-grid,.movement-grid{grid-template-columns:1fr}
+.discount-grid,.discount-control,.add-inventory-grid{grid-template-columns:1fr}
+.discount-control button,.add-inventory-grid button{grid-column:auto}
 .cms-form .wide-field{grid-column:auto}
 .service-row{grid-template-columns:minmax(0,1fr) 78px 40px}
 .admin-row,.team-row{grid-template-columns:1fr}

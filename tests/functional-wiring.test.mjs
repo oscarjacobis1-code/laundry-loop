@@ -6,7 +6,9 @@ import test from "node:test";
 const publicHtml = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 const production = await readFile(new URL("../public/laundry-loop.production.js", import.meta.url), "utf8");
 const portal = await readFile(new URL("../app/portal/Portal.tsx", import.meta.url), "utf8");
+const portalCss = await readFile(new URL("../app/portal/portal.css", import.meta.url), "utf8");
 const cmsMigration = await readFile(new URL("../supabase/migrations/20260823030000_site_content_cms.sql", import.meta.url), "utf8");
+const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
 
 test("every public payment panel referenced by the controller exists", () => {
   const panelIds = new Set([...publicHtml.matchAll(/id="payment-step-([a-z]+)"/g)].map((match) => match[1]));
@@ -52,6 +54,29 @@ test("counter POS starts with a service and reports actionable errors", () => {
   assert.match(portal, /MMG transaction reference/);
   assert.match(portal, /p_payment: \{ method: pos\.paymentMethod, status: pos\.paymentStatus, reference:/);
   assert.match(portal, /role="alert"/);
+});
+
+test("portal login fields keep visible descriptions", () => {
+  assert.match(portal, /className="field-label">Email address/);
+  assert.match(portal, /className="field-label">Password/);
+  assert.match(portalCss, /\.login-card label,\.login-card \.field-label\{color:var\(--ink\)\}/);
+});
+
+test("supervisor POS discounts support fixed amounts and percentages", () => {
+  assert.match(portal, /type DiscountMode = "amount" \| "percent"/);
+  assert.match(portal, /pos\.discountMode === "percent"/);
+  assert.match(portal, /p_discount_gyd: profile\?\.role === "staff" \? 0 : posDiscount/);
+  assert.match(portal, /<option value="percent">Percentage<\/option>/);
+  assert.match(posInventoryMigration, /v_role not in \('manager', 'admin'\)/);
+  assert.match(posInventoryMigration, /Discount cannot exceed subtotal/);
+});
+
+test("only administrators can create new inventory items", () => {
+  assert.match(portal, /rpc\("admin_create_inventory_item"/);
+  assert.match(portal, /\{isAdmin && <form className="panel add-inventory-form"/);
+  assert.match(posInventoryMigration, /if not private\.is_admin\(\)/);
+  assert.match(posInventoryMigration, /'Opening stock'/);
+  assert.match(posInventoryMigration, /grant execute on function public\.admin_create_inventory_item/);
 });
 
 test("receipt and bag tag printing are separate outputs", () => {
