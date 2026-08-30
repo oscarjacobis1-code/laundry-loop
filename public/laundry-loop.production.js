@@ -22,6 +22,7 @@
   let compressedScalePhoto = null;
   let orderSubmissionInFlight = false;
   let planSubmissionInFlight = false;
+  let loopCreditOptions = [];
   const showError = (element, message) => {
     if (!element) return;
     element.textContent = message;
@@ -59,7 +60,7 @@
   async function loadPublicConfiguration() {
     if (!backendReady()) return;
     const [contentResult, serviceResult] = await Promise.all([
-      sbClient.from('site_content').select('business_name,tagline,hero_eyebrow,hero_title,hero_emphasis,hero_description,address,directions,maps_url,phone,mmg_number,mmg_name,estimate_disclaimer').eq('id', true).single(),
+      sbClient.from('site_content').select('business_name,tagline,hero_eyebrow,hero_title,hero_emphasis,hero_description,address,directions,maps_url,phone,mmg_number,mmg_name,estimate_disclaimer,loop_credit_options').eq('id', true).single(),
       sbClient.from('service_catalog').select('name,category,rate,unit,active').eq('active', true)
     ]);
     if (contentResult.data) {
@@ -77,6 +78,7 @@
       document.querySelectorAll('[data-mmg-number]').forEach((element) => { element.textContent = content.mmg_number; });
       document.querySelectorAll('[data-mmg-name]').forEach((element) => { element.textContent = content.mmg_name; });
       document.querySelectorAll('[data-estimate-disclaimer]').forEach((element) => { element.textContent = content.estimate_disclaimer; });
+      loopCreditOptions = Array.isArray(content.loop_credit_options) ? content.loop_credit_options : [];
     }
     if (serviceResult.data) {
       for (const liveService of serviceResult.data) {
@@ -334,6 +336,7 @@
       const result = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
       localStorage.setItem(SESSION_KEY, result.session_token);
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
+      if (result.recovery_code) alert(`Account created. Save this recovery code somewhere private: ${result.recovery_code}`);
       updateAccountNavButton();
       closeModal('auth-modal');
       showView('view-account');
@@ -351,6 +354,8 @@
       const result = await rpc('customer_login', { p_phone: phone, p_passcode: passcode });
       localStorage.setItem(SESSION_KEY, result.session_token);
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
+      document.getElementById('login-passcode').value = '';
+      if (result.recovery_code) alert(`Your account now has password recovery. Save this private code: ${result.recovery_code}`);
       updateAccountNavButton();
       closeModal('auth-modal');
       showView('view-account');
@@ -359,11 +364,28 @@
     }
   };
 
+  window.resetCustomerPasscode = async function () {
+    const errorBox = document.getElementById('recover-error');
+    errorBox.classList.add('hidden');
+    try {
+      const newRecoveryCode = await rpc('customer_reset_passcode', {
+        p_phone: document.getElementById('recover-phone').value.trim(),
+        p_recovery_code: document.getElementById('recover-code').value.trim(),
+        p_new_passcode: document.getElementById('recover-passcode').value
+      });
+      document.getElementById('recover-code').value = '';
+      document.getElementById('recover-passcode').value = '';
+      switchAuthTab('login');
+      alert(`Passcode reset and old sessions closed. Save your new recovery code: ${newRecoveryCode}`);
+    } catch (error) { showError(errorBox, error.message); }
+  };
+
   window.logOut = function () {
     const token = localStorage.getItem(SESSION_KEY);
     if (token) rpc('customer_logout', { p_session_token: token }).catch(() => {});
     localStorage.removeItem(SESSION_KEY);
     CURRENT_USER = null;
+    ['login-passcode','create-passcode','create-passcode-confirm','acc-pass','recover-passcode','recover-code'].forEach((id) => { const field=document.getElementById(id); if(field) field.value=''; });
     updateAccountNavButton();
     goHome();
   };
@@ -377,7 +399,11 @@
     }
     document.getElementById('account-welcome-msg').textContent = `Welcome back, ${CURRENT_USER.name}.`;
     try {
-      const rows = await rpc('customer_order_history', { p_session_token: token });
+      const [rows, summary] = await Promise.all([
+        rpc('customer_order_history', { p_session_token: token }),
+        rpc('customer_account_summary', { p_session_token: token })
+      ]);
+      renderSubscriptionSummary(summary);
       const orders = (rows || []).map(mapOrder);
       if (!orders.length) {
         list.innerHTML = '<div class="panel p-6 text-[14px] text-center" style="color:var(--sub);">No orders found under this account.</div>';
@@ -390,6 +416,34 @@
       updateAccountNavButton();
       list.innerHTML = `<p class="text-[12px] text-red-700">${error.message}</p>`;
     }
+  };
+
+  function renderSubscriptionSummary(summary) {
+    const box = document.getElementById('account-subscription');
+    if (!box) return;
+    const subscription = summary?.subscription;
+    loopCreditOptions = summary?.loop_credit_options || loopCreditOptions;
+    if (!subscription) { box.classList.add('hidden'); box.innerHTML=''; return; }
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="flex flex-wrap items-start justify-between gap-5"><div><span class="eyebrow">Active monthly plan</span><h3 class="font-display font-semibold text-2xl mt-1">${Number(subscription.remaining_pounds).toLocaleString()} lbs remaining this week</h3><p class="text-[13px] mt-2" style="color:var(--sub);">${Number(subscription.used_pounds).toLocaleString()} of ${Number(subscription.weekly_pounds).toLocaleString()} lbs used · ${subscription.days_remaining} days remaining · ${subscription.credit_balance} Loop Credits</p></div><button class="btn btn-accent" onclick="openLoopCredits()">Ran Out of Washes? Get more Loop Credits here</button></div>`;
+  }
+
+  window.openLoopCredits = function () {
+    const list=document.getElementById('loop-credit-options');
+    list.innerHTML=loopCreditOptions.map((option)=>`<button class="btn btn-outline w-full p-4 flex items-center justify-between" onclick="buyLoopCredits('${escapeHtml(option.id)}')"><span><strong>${Number(option.credits).toLocaleString()} credits</strong> / ${Number(option.pounds).toLocaleString()} lbs</span><strong>${money(option.price)}</strong></button>`).join('');
+    openModal('loop-credit-modal');
+  };
+
+  window.buyLoopCredits = async function (optionId) {
+    const option=loopCreditOptions.find((item)=>item.id===optionId); if(!option)return;
+    const method=confirm('Press OK for MMG, or Cancel to pay cash in person.')?'MMG':'Cash';
+    let reference=null; if(method==='MMG'){reference=prompt('Enter the MMG transaction reference:'); if(!reference)return;}
+    try {
+      const order=await rpc('create_loop_credit_request',{p_session_token:localStorage.getItem(SESSION_KEY),p_option_id:optionId,p_payment:cleanPayment({method,status:method==='MMG'?'Pending Confirmation':'Pay at Pickup',reference})});
+      closeModal('loop-credit-modal');
+      alert(`Loop Credit request ${order.tracking_code} received. Staff will verify payment and apply the credits.`);
+      await renderAccountView();
+    } catch(error){alert(error.message);}
   };
 
   window.finalizeOrder = async function (paymentInfo) {
@@ -443,6 +497,7 @@
     const name = document.getElementById('acc-name').value.trim();
     const phone = document.getElementById('acc-phone').value.trim();
     const passcode = document.getElementById('acc-pass').value;
+    const whatsappWindow = window.open('', '_blank');
     planSubmissionInFlight = true;
     try {
       let token = localStorage.getItem(SESSION_KEY);
@@ -451,9 +506,14 @@
         token = account.session_token;
         localStorage.setItem(SESSION_KEY, token);
         CURRENT_USER = { id: account.customer_id, name: account.name, phone: account.phone };
+        if (account.recovery_code) alert(`Save this private account recovery code: ${account.recovery_code}`);
         updateAccountNavButton();
       }
-      const row = await rpc('create_public_order', {
+      const row = activePlan.name === 'Monthly Package' ? await rpc('create_subscription_request', {
+        p_name: name, p_phone: phone,
+        p_payment: cleanPayment({ method: selectedPaymentMethod, status: selectedPaymentMethod === 'MMG' ? 'Pending Confirmation' : 'Pay at Pickup', reference }),
+        p_session_token: token
+      }) : await rpc('create_public_order', {
         p_name: name,
         p_phone: phone,
         p_items: [{ label: activePlan.name, qty: 1 }],
@@ -466,7 +526,10 @@
       document.getElementById('acc-backup-code').innerText = row.tracking_code;
       document.getElementById('step-invest-account').classList.add('hidden');
       document.getElementById('step-invest-success').classList.remove('hidden');
+      const confirmation=`Thank you for choosing The Laundry Loop. Your subscription request ${row.tracking_code} is being processed. You will receive a message shortly confirming your active subscription.`;
+      if (whatsappWindow) whatsappWindow.location.href=`https://wa.me/${String(phone).replace(/\D/g,'').replace(/^0?([0-9]{7})$/,'592$1')}?text=${encodeURIComponent(confirmation)}`;
     } catch (error) {
+      if (whatsappWindow) whatsappWindow.close();
       alert(error.message.includes('already') ? 'An account already exists for this phone number. Log in first, then choose the plan again.' : error.message);
     } finally {
       planSubmissionInFlight = false;

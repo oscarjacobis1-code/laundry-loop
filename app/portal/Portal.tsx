@@ -32,6 +32,7 @@ type SiteContent = {
   id: boolean; business_name: string; tagline: string; hero_eyebrow: string; hero_title: string; hero_emphasis: string;
   hero_description: string; address: string; directions: string; maps_url: string; phone: string; mmg_number: string;
   mmg_name: string; estimate_disclaimer: string;
+  loop_credit_options: Array<{ id: string; credits: number; pounds: number; price: number }>;
 };
 
 const statuses = ["Received", "Washing", "Drying", "Ready for Pick-Up", "Picked Up (Archived)", "Cancelled/Refunded"];
@@ -185,7 +186,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error) setMessage("Email or password is incorrect."); else if (data.user) await validateRole(data.user.id);
+    if (error) setMessage("Email or password is incorrect."); else if (data.user) { setPassword(""); await validateRole(data.user.id); }
     setBusy(false);
   }
 
@@ -212,6 +213,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const sessionId=sessionStorage.getItem("ll-access-session");
     if(sessionId) await supabase.rpc("staff_access_logout",{p_session_id:sessionId});
     sessionStorage.removeItem("ll-access-session"); await supabase.auth.signOut({ scope: "local" });
+    setPassword(""); setAttendancePassword(""); setNewPassword(""); setEmail(""); setProfile(null);
   }
 
   async function savePassword(event: FormEvent) {
@@ -305,15 +307,24 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setBusy(true); setMessage("");
     const values: Partial<SiteContent> = { ...siteContent };
     delete values.id;
-    const { error } = await supabase.from("site_content").update({ ...values, updated_by: profile.user_id }).eq("id", true);
-    if (error) setMessage(`Website content was not saved: ${error.message}`);
+    delete values.loop_credit_options;
+    const [{ error }, { error: creditError }] = await Promise.all([
+      supabase.from("site_content").update({ ...values, updated_by: profile.user_id }).eq("id", true),
+      supabase.rpc("admin_update_loop_credit_options", { p_options: siteContent.loop_credit_options }),
+    ]);
+    if (error || creditError) setMessage(`Website content was not saved: ${(error || creditError)?.message}`);
     else { await loadAdmin(); setMessage("Website content published. Refresh the public homepage to see it."); }
     setBusy(false);
   }
 
   function whatsapp(order: Order) {
     const phone = phoneDigits(order.customer_phone);
-    const copy = `Laundry Loop update: order ${order.tracking_code} is ${order.status}. Total ${money(order.total)}. Thank you.`;
+    const isSubscription = order.order_type === "Monthly Package";
+    const copy = isSubscription && order.payment?.status === "Paid"
+      ? `Welcome to The Laundry Loop, ${order.customer_name}! Your monthly subscription is now active. You can log in to see your weekly pounds and remaining subscription days. Thank you for choosing The Laundry Loop.`
+      : isSubscription
+        ? `Thank you for choosing The Laundry Loop. Your subscription request ${order.tracking_code} is being processed. We will message you as soon as payment is verified and your subscription is active.`
+        : `Laundry Loop update: order ${order.tracking_code} is ${order.status}. Total ${money(order.total)}. Thank you.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(copy)}`, "_blank", "noopener,noreferrer");
   }
 
@@ -488,8 +499,8 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </td>
 <td>
 <div className="row-actions">
-<button onClick={() => setSelectedOrder(order)}>Receipt</button>
-<button onClick={() => whatsapp(order)}>WhatsApp</button>
+<button className="print-action" onClick={() => setSelectedOrder(order)}>Receipt</button>
+<button className="whatsapp-action" onClick={() => whatsapp(order)}>WhatsApp</button>
 {order.scale_photo_path && <button onClick={() => void openPhoto(order)}>Photo</button>}
 {profile.role !== "staff" && order.status !== "Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({ order, type: order.payment?.status === "Paid" ? "refund" : "cancel" }); setOrderActionReason(""); }}>Cancel / Refund</button>}</div>
 </td>
@@ -574,8 +585,8 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <aside className="panel total-card"><p className="eyebrow">Failsafe checklist</p><h2>During an outage</h2><ul><li>Keep the tablet and router on the UPS.</li><li>Try the mobile hotspot if internet alone is down.</li><li>If both fail, issue a numbered paper receipt.</li><li>Record customer, phone, service, weight, payment and exact time.</li><li>Back-enter each receipt here once service returns.</li></ul></aside></section>}
 
       {view === "inventory" && <section>
-{isAdmin && <form className="panel add-inventory-form" onSubmit={createInventoryItem}>
-<div className="section-heading"><div><p className="eyebrow">Administrator only</p><h2>Add inventory item</h2></div><span className="badge">New stock line</span></div>
+<form className="panel add-inventory-form" onSubmit={createInventoryItem}>
+<div className="section-heading"><div><p className="eyebrow">Staff inventory tool</p><h2>Add inventory item</h2></div><span className="badge">New stock line</span></div>
 <p className="muted">Create supplies that are not already listed. Existing names cannot be duplicated.</p>
 <div className="add-inventory-grid">
 <label>Item name<input value={inventoryItemForm.name} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, name: e.target.value })} placeholder="e.g. Stain remover" minLength={2} maxLength={80} required/></label>
@@ -584,7 +595,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <label>Opening stock<input type="number" min="0" step="0.001" value={inventoryItemForm.openingStock} onChange={(e) => setInventoryItemForm({ ...inventoryItemForm, openingStock: e.target.value })} placeholder="0"/></label>
 <button disabled={busy}>Add item</button>
 </div>
-</form>}
+</form>
 <div className="inventory-grid">{inventory.map((item) => <article className={`panel stock-card ${Number(item.on_hand) <= Number(item.reorder_level) ? "low" : ""}`} key={item.item_id}>
 <div>
 <h3>{item.item_name}</h3>
@@ -688,6 +699,13 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <label>MMG account name<input value={siteContent.mmg_name} onChange={e=>setSiteContent({...siteContent,mmg_name:e.target.value})} maxLength={120} required/></label>
 <label>Estimate disclaimer<input value={siteContent.estimate_disclaimer} onChange={e=>setSiteContent({...siteContent,estimate_disclaimer:e.target.value})} maxLength={240} required/></label>
 </div></fieldset>
+<fieldset><legend>Loop Credit top-ups</legend><p className="muted">Customers with an active monthly subscription see these options in My Account.</p><div className="admin-list">
+{siteContent.loop_credit_options.map((option,index)=><div className="admin-row credit-option-row" key={option.id}>
+<label>Credits<input type="number" min="1" value={option.credits} onChange={e=>setSiteContent({...siteContent,loop_credit_options:siteContent.loop_credit_options.map((item,i)=>i===index?{...item,credits:Number(e.target.value)}:item)})}/></label>
+<label>Pounds<input type="number" min="0.5" step="0.5" value={option.pounds} onChange={e=>setSiteContent({...siteContent,loop_credit_options:siteContent.loop_credit_options.map((item,i)=>i===index?{...item,pounds:Number(e.target.value)}:item)})}/></label>
+<label>Price (GYD)<input type="number" min="0" step="100" value={option.price} onChange={e=>setSiteContent({...siteContent,loop_credit_options:siteContent.loop_credit_options.map((item,i)=>i===index?{...item,price:Number(e.target.value)}:item)})}/></label>
+</div>)}
+</div></fieldset>
 <button className="primary-wide" disabled={busy}>Publish website content</button>
 </form> : <div className="panel"><p>Loading website content…</p></div>}
 </section>}
@@ -767,7 +785,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <div id="printable-receipt" className="receipt">
 <header>
 <strong>Laundry Loop</strong>
-<small>Quality laundry. Carefully tracked.</small>
+<small>Fresh. Folded. Done.</small>
 </header>
 <h2>{selectedOrder.tracking_code}</h2>
 <p>{dateTime(selectedOrder.created_at)}</p>
@@ -795,9 +813,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <small>{selectedOrder.weight_summary}</small>
 </div>
 <div className="modal-actions">
-<button onClick={() => printOrder("receipt")}>Print receipt</button>
-<button className="secondary" onClick={() => printOrder("tag")}>Print bag tag</button>
-<button className="secondary" onClick={() => whatsapp(selectedOrder)}>WhatsApp</button>
+<button className="print-action" onClick={() => printOrder("receipt")}>Print receipt</button>
+<button className="print-action" onClick={() => printOrder("tag")}>Print bag tag</button>
+<button className="whatsapp-action" onClick={() => whatsapp(selectedOrder)}>WhatsApp</button>
 {profile.role!=="staff" && selectedOrder.status!=="Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({order:selectedOrder,type:selectedOrder.payment?.status==="Paid"?"refund":"cancel"}); setOrderActionReason(""); setSelectedOrder(null); }}>Cancel / Refund</button>}
 </div>
 {profile.role!=="staff" && <div className="discount-control">

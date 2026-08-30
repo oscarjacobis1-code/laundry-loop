@@ -79,6 +79,12 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .pay-refunded,.status-cancelled-refunded{background:#fae9e9;color:#8e3434;border-color:#eccaca}
 .row-actions{display:grid;grid-template-columns:repeat(2,minmax(104px,1fr));gap:7px;min-width:220px}
 .row-actions button{min-height:40px;padding:8px 10px;background:#edf1ee;color:var(--green);font-size:.76rem}
+.whatsapp-action,.print-action{position:relative;isolation:isolate;overflow:hidden;border:1px solid var(--line)!important;background:#fff!important;color:var(--green)!important;transition:color .25s ease,border-color .25s ease,transform .15s ease}
+.whatsapp-action:before,.print-action:before{content:"";position:absolute;z-index:-1;inset:0;transform:translateY(102%);transition:transform .28s ease}
+.whatsapp-action:before{background:#169b62}.print-action:before{background:var(--green2)}
+.whatsapp-action:hover,.whatsapp-action:focus-visible,.whatsapp-action:active,.print-action:hover,.print-action:focus-visible,.print-action:active{color:#fff!important;border-color:transparent!important}
+.whatsapp-action:hover:before,.whatsapp-action:focus-visible:before,.whatsapp-action:active:before,.print-action:hover:before,.print-action:focus-visible:before,.print-action:active:before{transform:translateY(0)}
+.whatsapp-action:active,.print-action:active{transform:translateY(1px)}
 .row-actions .danger-action,.danger-action{background:#fff0f0;color:#963535;border:1px solid #e7bcbc}
 .danger-action:hover{background:#f8dddd}
 .table-panel td select{margin-top:6px;padding:5px 7px;min-width:140px;font-size:.72rem}
@@ -146,6 +152,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .team-row{grid-template-columns:1fr 180px 100px 120px}
 .operations-detail h2{font-size:1.4rem}
 .cms-form{display:grid;gap:22px;max-width:980px}.cms-form fieldset{margin:0;padding:18px;border:1px solid var(--line);border-radius:6px}.cms-form legend{padding:0 8px;color:var(--green);font-family:Georgia,serif;font-size:1.12rem;font-weight:800}.cms-form .wide-field{grid-column:1/-1}
+.credit-option-row{grid-template-columns:repeat(3,1fr)}
 
 .modal-overlay{position:fixed;z-index:100;inset:0;display:grid;place-items:center;padding:20px;background:rgba(8,25,19,.72)}
 .modal-card{position:relative;width:min(100%,520px);max-height:92vh;overflow:auto;background:#fff;border-radius:7px;padding:24px;box-shadow:0 25px 80px rgba(0,0,0,.35)}

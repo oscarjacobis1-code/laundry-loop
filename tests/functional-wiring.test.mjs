@@ -9,6 +9,7 @@ const portal = await readFile(new URL("../app/portal/Portal.tsx", import.meta.ur
 const portalCss = await readFile(new URL("../app/portal/portal.css", import.meta.url), "utf8");
 const cmsMigration = await readFile(new URL("../supabase/migrations/20260823030000_site_content_cms.sql", import.meta.url), "utf8");
 const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
+const subscriptionMigration = await readFile(new URL("../supabase/migrations/20260830020000_subscription_accounts_and_loop_credits.sql", import.meta.url), "utf8");
 
 test("every public payment panel referenced by the controller exists", () => {
   const panelIds = new Set([...publicHtml.matchAll(/id="payment-step-([a-z]+)"/g)].map((match) => match[1]));
@@ -71,12 +72,41 @@ test("supervisor POS discounts support fixed amounts and percentages", () => {
   assert.match(posInventoryMigration, /Discount cannot exceed subtotal/);
 });
 
-test("only administrators can create new inventory items", () => {
+test("staff and administrators can create new inventory items", () => {
   assert.match(portal, /rpc\("admin_create_inventory_item"/);
-  assert.match(portal, /\{isAdmin && <form className="panel add-inventory-form"/);
-  assert.match(posInventoryMigration, /if not private\.is_admin\(\)/);
+  assert.match(portal, /<form className="panel add-inventory-form"/);
+  assert.doesNotMatch(portal, /\{isAdmin && <form className="panel add-inventory-form"/);
+  assert.match(subscriptionMigration, /if not public\.is_staff\(\)/);
   assert.match(posInventoryMigration, /'Opening stock'/);
   assert.match(posInventoryMigration, /grant execute on function public\.admin_create_inventory_item/);
+});
+
+test("logout clears credentials and customer recovery invalidates old sessions", () => {
+  assert.match(portal, /setPassword\(""\); setAttendancePassword\(""\); setNewPassword\(""\); setEmail\(""\)/);
+  assert.match(production, /\['login-passcode','create-passcode','create-passcode-confirm','acc-pass','recover-passcode','recover-code'\]/);
+  assert.match(subscriptionMigration, /customer_reset_passcode/);
+  assert.match(subscriptionMigration, /delete from public\.customer_sessions/);
+});
+
+test("subscription requests activate after payment and expose account allowance", () => {
+  assert.match(production, /create_subscription_request/);
+  assert.match(production, /customer_account_summary/);
+  assert.match(production, /remaining_pounds/);
+  assert.match(subscriptionMigration, /orders_sync_subscription_payment/);
+  assert.match(portal, /Your monthly subscription is now active/);
+});
+
+test("Loop Credit options are CMS-managed and purchasable", () => {
+  assert.match(portal, /loop_credit_options/);
+  assert.match(production, /create_loop_credit_request/);
+  assert.match(subscriptionMigration, /loop_credit_options jsonb/);
+  assert.match(subscriptionMigration, /loop_credit_purchases/);
+});
+
+test("receipt and action styling use the approved wording and fills", () => {
+  assert.match(portal, /Fresh\. Folded\. Done\./);
+  assert.match(portalCss, /\.whatsapp-action:before\{background:#169b62\}/);
+  assert.match(portalCss, /\.print-action:before\{background:var\(--green2\)\}/);
 });
 
 test("receipt and bag tag printing are separate outputs", () => {
