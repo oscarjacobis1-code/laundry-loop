@@ -25,6 +25,7 @@ type Inventory = {
 };
 type Alert = { id: string; requester_email: string; created_at: string; resolved_at: string | null };
 type Summary = { period_days: number; orders: number; revenue: number; average_order_value: number; repeat_customers: number; busiest_hour: number | null; average_hours_to_ready: number | null };
+type Subscription = { subscription_id:string; tracking_code:string; customer_name:string; customer_phone:string; subscription_status:string; payment_status:string; payment_method:string; weekly_pounds:number; extra_pounds:number; credit_balance:number; starts_at:string|null; ends_at:string|null; created_at:string };
 type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "content" | "services" | "team" | "security";
 type DiscountMode = "amount" | "percent";
 type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; discountMode: DiscountMode; discountValue: string };
@@ -86,15 +87,18 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [posMessage, setPosMessage] = useState("");
   const [printMode, setPrintMode] = useState<"receipt" | "tag">("receipt");
   const [siteContent, setSiteContent] = useState<SiteContent | null>(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");
 
   const isAdmin = profile?.role === "admin";
 
   const loadDashboard = useCallback(async () => {
-    const [orderResult, serviceResult, inventoryResult, summaryResult] = await Promise.all([
+    const [orderResult, serviceResult, inventoryResult, summaryResult, subscriptionResult] = await Promise.all([
       supabase.from("orders").select("id,tracking_code,customer_name,customer_phone,items,weight_summary,subtotal,discount,total,status,notes,order_type,scheduled_date,scale_photo_path,payment,created_at,entry_source,original_transaction_at,paper_reference").order("created_at", { ascending: false }).limit(500),
       supabase.from("service_catalog").select("id,name,category,rate,unit,active").order("category").order("name"),
       supabase.rpc("staff_inventory_summary"),
       supabase.rpc("staff_operations_summary", { p_days: 30 }),
+      supabase.rpc("staff_subscription_summary"),
     ]);
     if (orderResult.error) setMessage(orderResult.error.message);
     setOrders((orderResult.data as Order[]) ?? []);
@@ -107,6 +111,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     }
     setInventory((inventoryResult.data as Inventory[]) ?? []);
     setSummary((summaryResult.data as Summary) ?? null);
+    setSubscriptions((subscriptionResult.data as Subscription[]) ?? []);
   }, [supabase]);
 
   const loadAdmin = useCallback(async () => {
@@ -116,7 +121,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       supabase.from("staff_profiles").select("user_id,display_name,role,active").order("display_name"),
       supabase.from("staff_attendance").select("id,staff_user_id,check_in_at,check_out_at").gte("check_in_at",weekStart.toISOString()).order("check_in_at",{ascending:false}),
       supabase.from("staff_access_sessions").select("id,staff_user_id,login_at,logout_at,last_activity_at").gte("login_at",weekStart.toISOString()).order("login_at",{ascending:false}),
-      supabase.from("site_content").select("id,business_name,tagline,hero_eyebrow,hero_title,hero_emphasis,hero_description,address,directions,maps_url,phone,mmg_number,mmg_name,estimate_disclaimer").eq("id",true).single(),
+      supabase.from("site_content").select("id,business_name,tagline,hero_eyebrow,hero_title,hero_emphasis,hero_description,address,directions,maps_url,phone,mmg_number,mmg_name,estimate_disclaimer,loop_credit_options").eq("id",true).single(),
     ]);
     setAlerts((alertResult.data as Alert[]) ?? []);
     setTeam((teamResult.data as Profile[]) ?? []);
@@ -164,6 +169,23 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const timer=window.setInterval(()=>{const id=sessionStorage.getItem("ll-access-session");if(id)void supabase.rpc("staff_access_heartbeat",{p_session_id:id});},300000);
     return()=>window.clearInterval(timer);
   },[profile,portal,supabase]);
+
+  useEffect(()=>{
+    if(!profile)return;
+    const idleMs=20*60*1000;
+    let timer:number;
+    const expire=async()=>{
+      const sessionId=sessionStorage.getItem("ll-access-session");
+      if(sessionId)await supabase.rpc("staff_access_logout",{p_session_id:sessionId});
+      sessionStorage.removeItem("ll-access-session");
+      await supabase.auth.signOut({scope:"local"});
+      setPassword("");setAttendancePassword("");setEmail("");setProfile(null);setMessage("You were signed out after 20 minutes of inactivity.");
+    };
+    const reset=()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>void expire(),idleMs);};
+    ["pointerdown","keydown","touchstart","scroll"].forEach(event=>window.addEventListener(event,reset,{passive:true}));
+    reset();
+    return()=>{window.clearTimeout(timer);["pointerdown","keydown","touchstart","scroll"].forEach(event=>window.removeEventListener(event,reset));};
+  },[profile,supabase]);
 
   const filteredOrders = useMemo(() => orders.filter((order) => {
     const q = search.toLowerCase().trim();
@@ -284,11 +306,11 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const openingStock = Number(inventoryItemForm.openingStock || 0);
     if (inventoryItemForm.name.trim().length < 2 || !inventoryItemForm.unit.trim()) { setMessage("Enter an item name and unit."); setBusy(false); return; }
     if (!Number.isFinite(reorderLevel) || reorderLevel < 0 || !Number.isFinite(openingStock) || openingStock < 0) { setMessage("Reorder level and opening stock cannot be negative."); setBusy(false); return; }
-    const { error } = await supabase.rpc("admin_create_inventory_item", {
+    const { data, error } = await supabase.rpc("staff_create_inventory_item", {
       p_name: inventoryItemForm.name.trim(), p_unit: inventoryItemForm.unit.trim(), p_reorder_level: reorderLevel, p_opening_stock: openingStock,
     });
     if (error) setMessage(`Inventory item was not added: ${error.message}`);
-    else { setInventoryItemForm({ name: "", unit: "", reorderLevel: "", openingStock: "" }); await loadDashboard(); setMessage("New inventory item added."); }
+    else { setInventoryItemForm({ name: "", unit: "", reorderLevel: "", openingStock: "" }); await loadDashboard(); setMessage(`${String((data as {item?:{name?:string}})?.item?.name || "New inventory item")} added successfully.`); }
     setBusy(false);
   }
 
@@ -326,6 +348,14 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         ? `Thank you for choosing The Laundry Loop. Your subscription request ${order.tracking_code} is being processed. We will message you as soon as payment is verified and your subscription is active.`
         : `Laundry Loop update: order ${order.tracking_code} is ${order.status}. Total ${money(order.total)}. Thank you.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(copy)}`, "_blank", "noopener,noreferrer");
+  }
+
+  function whatsappSubscription(item: Subscription) {
+    const active = item.subscription_status === "Active";
+    const copy = active
+      ? `Welcome to The Laundry Loop, ${item.customer_name}! Your monthly subscription is active. You have ${Number(item.weekly_pounds) + Number(item.extra_pounds)} lbs available each week. Thank you for choosing The Laundry Loop.`
+      : `Thank you for choosing The Laundry Loop. Your subscription request ${item.tracking_code} is being processed. We will message you as soon as payment is verified and your subscription is active.`;
+    window.open(`https://wa.me/${phoneDigits(item.customer_phone)}?text=${encodeURIComponent(copy)}`, "_blank", "noopener,noreferrer");
   }
 
   function printOrder(mode: "receipt" | "tag") {
@@ -673,6 +703,22 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <p>Busiest order hour: <strong>{summary?.busiest_hour == null ? "Not enough data" : `${String(summary.busiest_hour).padStart(2, "0")}:00`}</strong>
 </p>
 <p className="muted">This view updates from real order and status history—not browser storage.</p>
+</div>
+<div className="panel subscription-operations">
+<div className="section-heading"><div><p className="eyebrow">Subscriptions</p><h2>Subscription control</h2></div><span className="badge">{subscriptions.filter(item=>item.subscription_status==="Pending Verification").length} new</span></div>
+<div className="subscription-filters" role="group" aria-label="Filter subscriptions">
+{["Pending","Active","Inactive","All"].map(filter=><button type="button" key={filter} className={subscriptionFilter===filter?"active":""} onClick={()=>setSubscriptionFilter(filter)}>{filter}</button>)}
+</div>
+<div className="subscription-list">
+{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.subscription_status==="Pending Verification")||(subscriptionFilter==="Active"&&item.subscription_status==="Active")||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.subscription_status))).map(item=><article className="subscription-row" key={item.subscription_id}>
+<div><strong>{item.customer_name}</strong><small>{item.customer_phone} · {item.tracking_code}</small></div>
+<div><span className={`badge subscription-${item.subscription_status.toLowerCase().replaceAll(" ","-")}`}>{item.subscription_status}</span><small>{item.payment_method} · {item.payment_status}</small></div>
+<div><strong>{Number(item.weekly_pounds)+Number(item.extra_pounds)} lbs/week</strong><small>{item.credit_balance} credits</small></div>
+<div><strong>{item.ends_at?new Date(item.ends_at).toLocaleDateString("en-GY"):"Awaiting activation"}</strong><small>{item.starts_at?"Active period":"Payment must be verified"}</small></div>
+<button className="whatsapp-action" onClick={()=>whatsappSubscription(item)}>WhatsApp</button>
+</article>)}
+{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.subscription_status==="Pending Verification")||(subscriptionFilter==="Active"&&item.subscription_status==="Active")||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.subscription_status))).length===0&&<p className="empty">No {subscriptionFilter.toLowerCase()} subscriptions.</p>}
+</div>
 </div>
 </section>}
 

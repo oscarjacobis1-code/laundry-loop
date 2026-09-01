@@ -10,6 +10,7 @@ const portalCss = await readFile(new URL("../app/portal/portal.css", import.meta
 const cmsMigration = await readFile(new URL("../supabase/migrations/20260823030000_site_content_cms.sql", import.meta.url), "utf8");
 const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
 const subscriptionMigration = await readFile(new URL("../supabase/migrations/20260830020000_subscription_accounts_and_loop_credits.sql", import.meta.url), "utf8");
+const operationsMigration = await readFile(new URL("../supabase/migrations/20260901010000_inventory_sessions_and_subscription_operations.sql", import.meta.url), "utf8");
 
 test("every public payment panel referenced by the controller exists", () => {
   const panelIds = new Set([...publicHtml.matchAll(/id="payment-step-([a-z]+)"/g)].map((match) => match[1]));
@@ -73,12 +74,12 @@ test("supervisor POS discounts support fixed amounts and percentages", () => {
 });
 
 test("staff and administrators can create new inventory items", () => {
-  assert.match(portal, /rpc\("admin_create_inventory_item"/);
+  assert.match(portal, /rpc\("staff_create_inventory_item"/);
   assert.match(portal, /<form className="panel add-inventory-form"/);
   assert.doesNotMatch(portal, /\{isAdmin && <form className="panel add-inventory-form"/);
-  assert.match(subscriptionMigration, /if not public\.is_staff\(\)/);
-  assert.match(posInventoryMigration, /'Opening stock'/);
-  assert.match(posInventoryMigration, /grant execute on function public\.admin_create_inventory_item/);
+  assert.match(operationsMigration, /auth\.uid\(\) is null or not public\.is_staff\(\)/);
+  assert.match(operationsMigration, /'Opening stock'/);
+  assert.match(operationsMigration, /grant execute on function public\.staff_create_inventory_item/);
 });
 
 test("logout clears credentials and customer recovery invalidates old sessions", () => {
@@ -107,6 +108,24 @@ test("receipt and action styling use the approved wording and fills", () => {
   assert.match(portal, /Fresh\. Folded\. Done\./);
   assert.match(portalCss, /\.whatsapp-action:before\{background:#169b62\}/);
   assert.match(portalCss, /\.print-action:before\{background:var\(--green2\)\}/);
+  assert.match(portalCss, /\.danger-action:before[^{]*\{[^}]*background:#c94b4b/);
+});
+
+test("subscription confirmation provides copy and operations controls", () => {
+  assert.match(publicHtml, /id="subscription-copy-button"/);
+  assert.match(publicHtml, /onclick="copyCode\(document\.getElementById\('acc-backup-code'\)\.textContent, this\)"/);
+  assert.match(portal, /staff_subscription_summary/);
+  assert.match(portal, /\["Pending","Active","Inactive","All"\]/);
+  assert.match(operationsMigration, /case when s\.status='Active' and s\.ends_at<=now\(\) then 'Expired'/);
+});
+
+test("all portals use tab-scoped sessions with a 20-minute idle timeout", async () => {
+  const portalSupabase = await readFile(new URL("../app/portal/supabase.ts", import.meta.url), "utf8");
+  assert.match(portalSupabase, /window\.sessionStorage/);
+  assert.match(portal, /const idleMs=20\*60\*1000/);
+  assert.match(production, /const CUSTOMER_IDLE_MS = 20 \* 60 \* 1000/);
+  assert.match(production, /sessionStorage\.getItem\(SESSION_KEY\)/);
+  assert.match(operationsMigration, /last_activity_at>now\(\)-interval '20 minutes'/);
 });
 
 test("receipt and bag tag printing are separate outputs", () => {

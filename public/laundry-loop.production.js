@@ -2,6 +2,8 @@
   'use strict';
 
   const SESSION_KEY = 'laundry_loop_customer_session';
+  const CUSTOMER_IDLE_MS = 20 * 60 * 1000;
+  let customerIdleTimer = null;
   const PREVIEW_DEMO = location.hostname === 'terminal.local';
   const PREVIEW_STAFF_EMAIL = 'staff@laundryloop.preview';
   const PREVIEW_STAFF_PASSWORD = 'Preview2026!';
@@ -334,7 +336,8 @@
     if (passcode.length < 6) return showError(errorBox, 'Use a passcode with at least six characters.');
     try {
       const result = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
-      localStorage.setItem(SESSION_KEY, result.session_token);
+      sessionStorage.setItem(SESSION_KEY, result.session_token);
+      resetCustomerIdleTimer();
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
       if (result.recovery_code) alert(`Account created. Save this recovery code somewhere private: ${result.recovery_code}`);
       updateAccountNavButton();
@@ -352,7 +355,8 @@
     errorBox.classList.add('hidden');
     try {
       const result = await rpc('customer_login', { p_phone: phone, p_passcode: passcode });
-      localStorage.setItem(SESSION_KEY, result.session_token);
+      sessionStorage.setItem(SESSION_KEY, result.session_token);
+      resetCustomerIdleTimer();
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
       document.getElementById('login-passcode').value = '';
       if (result.recovery_code) alert(`Your account now has password recovery. Save this private code: ${result.recovery_code}`);
@@ -381,18 +385,32 @@
   };
 
   window.logOut = function () {
-    const token = localStorage.getItem(SESSION_KEY);
+    const token = sessionStorage.getItem(SESSION_KEY);
     if (token) rpc('customer_logout', { p_session_token: token }).catch(() => {});
-    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    window.clearTimeout(customerIdleTimer);
     CURRENT_USER = null;
     ['login-passcode','create-passcode','create-passcode-confirm','acc-pass','recover-passcode','recover-code'].forEach((id) => { const field=document.getElementById(id); if(field) field.value=''; });
     updateAccountNavButton();
     goHome();
   };
 
+  function resetCustomerIdleTimer() {
+    if (!sessionStorage.getItem(SESSION_KEY)) return;
+    window.clearTimeout(customerIdleTimer);
+    customerIdleTimer = window.setTimeout(() => {
+      window.logOut();
+      alert('You were signed out after 20 minutes of inactivity.');
+    }, CUSTOMER_IDLE_MS);
+  }
+
+  ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach((eventName) => {
+    window.addEventListener(eventName, resetCustomerIdleTimer, { passive: true });
+  });
+
   window.renderAccountView = async function () {
     const list = document.getElementById('account-orders-list');
-    const token = localStorage.getItem(SESSION_KEY);
+    const token = sessionStorage.getItem(SESSION_KEY);
     if (!CURRENT_USER || !token) {
       list.innerHTML = '<p class="text-[14px]" style="color:var(--sub);">Please log in to view orders.</p>';
       return;
@@ -411,7 +429,7 @@
       }
       list.innerHTML = orders.map((o) => `<div class="panel p-5 flex flex-wrap items-center justify-between gap-4"><div><div class="flex items-center gap-2"><div class="font-mono font-medium text-[13px]">${o.code}</div><button type="button" onclick="copyCode('${o.code}', this)" class="text-[10px] text-stone-500 hover:text-stone-900">Copy</button></div><div class="text-[12px] mt-1" style="color:var(--sub);">${o.date} · ${o.weight} · ${o.type}</div></div><div class="flex items-center gap-2">${statusChip(o.status)}${paymentChip(o.payment)}</div><div class="font-mono font-medium text-[14px]">${money(o.total)}</div></div>`).join('');
     } catch (error) {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       CURRENT_USER = null;
       updateAccountNavButton();
       list.innerHTML = `<p class="text-[12px] text-red-700">${error.message}</p>`;
@@ -439,7 +457,7 @@
     const method=confirm('Press OK for MMG, or Cancel to pay cash in person.')?'MMG':'Cash';
     let reference=null; if(method==='MMG'){reference=prompt('Enter the MMG transaction reference:'); if(!reference)return;}
     try {
-      const order=await rpc('create_loop_credit_request',{p_session_token:localStorage.getItem(SESSION_KEY),p_option_id:optionId,p_payment:cleanPayment({method,status:method==='MMG'?'Pending Confirmation':'Pay at Pickup',reference})});
+      const order=await rpc('create_loop_credit_request',{p_session_token:sessionStorage.getItem(SESSION_KEY),p_option_id:optionId,p_payment:cleanPayment({method,status:method==='MMG'?'Pending Confirmation':'Pay at Pickup',reference})});
       closeModal('loop-credit-modal');
       alert(`Loop Credit request ${order.tracking_code} received. Staff will verify payment and apply the credits.`);
       await renderAccountView();
@@ -458,7 +476,7 @@
         p_order_type: PENDING_ORDER.type,
         p_scheduled_date: PENDING_ORDER.date,
         p_payment: cleanPayment(paymentInfo),
-        p_session_token: localStorage.getItem(SESSION_KEY),
+        p_session_token: sessionStorage.getItem(SESSION_KEY),
         p_has_scale_photo: Boolean(compressedScalePhoto)
       });
       if (compressedScalePhoto) await uploadScalePhoto(result, compressedScalePhoto);
@@ -500,11 +518,12 @@
     const whatsappWindow = window.open('', '_blank');
     planSubmissionInFlight = true;
     try {
-      let token = localStorage.getItem(SESSION_KEY);
+      let token = sessionStorage.getItem(SESSION_KEY);
       if (!CURRENT_USER || !token) {
         const account = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
         token = account.session_token;
-        localStorage.setItem(SESSION_KEY, token);
+        sessionStorage.setItem(SESSION_KEY, token);
+        resetCustomerIdleTimer();
         CURRENT_USER = { id: account.customer_id, name: account.name, phone: account.phone };
         if (account.recovery_code) alert(`Save this private account recovery code: ${account.recovery_code}`);
         updateAccountNavButton();
@@ -800,14 +819,15 @@
   }
 
   async function restoreCustomerSession() {
-    const token = localStorage.getItem(SESSION_KEY);
+    const token = sessionStorage.getItem(SESSION_KEY);
     if (!token) return;
     try {
       const result = await rpc('customer_session_profile', { p_session_token: token });
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
       updateAccountNavButton();
+      resetCustomerIdleTimer();
     } catch {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
     }
   }
 

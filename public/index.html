@@ -708,7 +708,7 @@
           <p class="text-[13px] text-stone-600 mb-4">Thank you for subscribing. Your request is being processed and staff will confirm your active subscription after payment is verified.</p>
           <div class="p-4" style="background:var(--paper); border:1px dashed var(--line);">
             <p class="text-[11px] uppercase tracking-widest text-stone-500 mb-1">Order Tracking Code</p>
-            <div id="acc-backup-code" class="text-2xl font-mono font-medium tracking-widest text-stone-800"></div>
+            <div class="flex items-center justify-center gap-2"><div id="acc-backup-code" class="text-2xl font-mono font-medium tracking-widest text-stone-800"></div><button type="button" id="subscription-copy-button" onclick="copyCode(document.getElementById('acc-backup-code').textContent, this)" class="btn btn-outline px-3 py-1.5 text-[11px]">Copy</button></div>
             <p class="text-[10px] text-stone-500 mt-2">Save this code to track the order from the homepage.</p>
           </div>
         </div>

@@ -10,6 +10,7 @@ export function createPortalSupabase(portal: "admin" | "staff") {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey: `laundry-loop-${portal}-auth-v2`,
+      storage: typeof window === "undefined" ? undefined : window.sessionStorage,
     },
   });
 }
