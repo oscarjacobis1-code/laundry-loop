@@ -4,14 +4,24 @@
   const isAndroid = /Android/i.test(navigator.userAgent);
   const browserPrint = window.print.bind(window);
 
-  function printableText() {
-    const receipt = document.querySelector('#printable-receipt');
-    if (receipt && receipt.innerText && receipt.innerText.trim()) return receipt.innerText.trim();
+  function textFrom(selector) {
+    const node = document.querySelector(selector);
+    return node && node.innerText && node.innerText.trim() ? node.innerText.trim() : '';
+  }
+
+  function printableText(mode = 'receipt') {
+    if (mode === 'tag') {
+      const tag = textFrom('#printable-bag-tag');
+      if (tag) return tag;
+    }
+
+    const receipt = textFrom('#printable-receipt');
+    if (receipt) return receipt;
 
     const candidates = ['[data-print-sheet]', '.print-sheet', '.receipt', '.order-print'];
     for (const selector of candidates) {
-      const node = document.querySelector(selector);
-      if (node && node.innerText && node.innerText.trim()) return node.innerText.trim();
+      const text = textFrom(selector);
+      if (text) return text;
     }
     return '';
   }
@@ -41,7 +51,7 @@
       sendToBridge(text, options.openDrawer === true);
     },
     printReceipt(options = {}) {
-      const text = printableText();
+      const text = printableText('receipt');
       if (!text) throw new Error('Receipt is not available to print.');
       if (!isAndroid) {
         browserPrint();
@@ -55,15 +65,35 @@
     browserPrint,
   };
 
-  // Laundry Loop's dedicated Android POS must never enter Android's document
-  // print/PDF preview for receipts. Existing POS code that calls window.print()
-  // is routed straight to the installed ESC/POS bridge instead. Desktop and
-  // non-Android devices retain browser printing as the emergency fallback.
-  if (isAndroid) {
-    window.print = () => {
-      const text = printableText();
-      if (!text) return;
-      sendToBridge(text, false);
-    };
-  }
+  if (!isAndroid) return;
+
+  // Dedicated Android POS: capture the actual React print-button tap before
+  // its onClick can call window.print(). This makes the APK deep link the
+  // primary path instead of relying on browser-print interception.
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest('button.print-action');
+    if (!button) return;
+
+    const label = (button.textContent || '').trim().toLowerCase();
+    if (!label.includes('print receipt') && !label.includes('print bag tag')) return;
+
+    const mode = label.includes('bag tag') ? 'tag' : 'receipt';
+    const text = printableText(mode);
+    if (!text) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    sendToBridge(text, false);
+  }, true);
+
+  // Compatibility fallback for any older POS action that still calls
+  // window.print() directly on Android.
+  window.print = () => {
+    const text = printableText('receipt');
+    if (!text) return;
+    sendToBridge(text, false);
+  };
 })();
