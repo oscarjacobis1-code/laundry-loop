@@ -2,6 +2,7 @@ package com.laundryloop.printbridge
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -35,6 +36,12 @@ class MainActivity : AppCompatActivity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
         root.addView(TextView(this).apply { text = "Laundry Loop Printer"; textSize = 24f })
         root.addView(TextView(this).apply { text = "Rongta / ESC-POS network printer" })
+        root.addView(TextView(this).apply {
+            text = "Powered by SnapNest Solutions"
+            textSize = 12f
+            alpha = 0.68f
+            setPadding(0, 4, 0, 16)
+        })
         host = EditText(this).apply { hint = "Printer IP e.g. 192.168.1.50"; setText(prefs.getString("host", "192.168.1.50")) }
         port = EditText(this).apply { hint = "Port"; inputType = 2; setText(prefs.getInt("port", 9100).toString()) }
         status = TextView(this).apply { text = "Not tested yet." }
@@ -42,6 +49,13 @@ class MainActivity : AppCompatActivity() {
         val test = Button(this).apply { text = "Test print"; setOnClickListener { savePrinter(); sendPrint("THE LAUNDRY LOOP\nPrinter connection test\nFresh. Folded. Done.\n\n", false) } }
         val drawer = Button(this).apply { text = "Test cash drawer"; setOnClickListener { savePrinter(); sendPrint("", true) } }
         listOf(host, port, save, test, drawer, status).forEach(root::addView)
+        root.addView(TextView(this).apply {
+            text = "Smart Software • Smart Business Solutions"
+            textSize = 11f
+            alpha = 0.55f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 24, 0, 0)
+        })
         setContentView(root)
     }
 
@@ -55,8 +69,6 @@ class MainActivity : AppCompatActivity() {
         if (uri.host == "configure") return
         if (uri.host == "print") {
             val text = uri.getQueryParameter("text") ?: return
-            // Drawer opens only when the website explicitly asks for it. Receipt
-            // printing alone never opens the drawer, preventing accidental kicks.
             val openDrawer = uri.getQueryParameter("drawer") == "1"
             sendPrint(text, openDrawer)
         }
@@ -73,13 +85,13 @@ class MainActivity : AppCompatActivity() {
                     socket.connect(InetSocketAddress(printerHost, printerPort), 3000)
                     socket.soTimeout = 3000
                     val out = ByteArrayOutputStream()
-                    out.write(byteArrayOf(0x1B, 0x40)) // ESC @ initialize
+                    out.write(byteArrayOf(0x1B, 0x40))
                     if (text.isNotBlank()) {
-                        out.write(text.replace("GYD", "GYD").toByteArray(Charsets.UTF_8))
+                        out.write(text.toByteArray(Charsets.UTF_8))
                         out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
-                        out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // GS V cut
+                        out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
                     }
-                    if (openDrawer) out.write(byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte())) // ESC p pin 2
+                    if (openDrawer) out.write(byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte()))
                     socket.getOutputStream().use { stream -> stream.write(out.toByteArray()); stream.flush() }
                 }
                 runOnUiThread { status.text = if (openDrawer && text.isBlank()) "Drawer command sent." else "Receipt sent to printer." }
