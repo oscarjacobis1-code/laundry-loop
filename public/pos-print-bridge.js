@@ -37,7 +37,7 @@
 
   function sendToBridge(text, openDrawer = false) {
     if (!text || !String(text).trim()) throw new Error('Nothing to print.');
-    window.location.href = bridgeUrl(String(text), openDrawer);
+    window.location.assign(bridgeUrl(String(text), openDrawer));
   }
 
   window.__LAUNDRY_BROWSER_PRINT__ = browserPrint;
@@ -60,16 +60,16 @@
       sendToBridge(text, options.openDrawer === true);
     },
     configure() {
-      if (isAndroid) window.location.href = 'laundryloop-print://configure';
+      if (isAndroid) window.location.assign('laundryloop-print://configure');
     },
     browserPrint,
   };
 
   if (!isAndroid) return;
 
-  // Dedicated Android POS: capture the actual React print-button tap before
-  // its onClick can call window.print(). This makes the APK deep link the
-  // primary path instead of relying on browser-print interception.
+  // Intercept the POS print controls during the normal bubbling phase.
+  // React's own onClick still gets blocked, but Android receives the custom
+  // scheme navigation as a direct consequence of the user's tap.
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -85,12 +85,10 @@
 
     event.preventDefault();
     event.stopPropagation();
-    event.stopImmediatePropagation();
     sendToBridge(text, false);
-  }, true);
+  }, false);
 
-  // Compatibility fallback for any older POS action that still calls
-  // window.print() directly on Android.
+  // Fallback for any existing React print action that reaches window.print().
   window.print = () => {
     const text = printableText('receipt');
     if (!text) return;
