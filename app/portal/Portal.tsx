@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { attendanceSupabase, createPortalSupabase } from "./supabase";
+import { createPortalSupabase, runAttendanceAction } from "./supabase";
 import "./portal.css";
 
 type PortalKind = "admin" | "staff";
@@ -224,11 +224,14 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   async function attendanceAction(event:FormEvent){
     event.preventDefault(); setBusy(true); setMessage("");
-    const {error:loginError}=await attendanceSupabase.auth.signInWithPassword({email:email.trim(),password:attendancePassword});
-    if(loginError){setMessage("Password is incorrect.");setBusy(false);return;}
-    const {error}=await attendanceSupabase.rpc(attendanceMode==="in"?"staff_check_in":"staff_check_out");
-    await attendanceSupabase.auth.signOut({scope:"local"}); setAttendancePassword("");
-    setMessage(error?error.message:`${identity==="affia"?"Affia":"In-store Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`); setBusy(false);
+    try {
+      await runAttendanceAction(email.trim(), attendancePassword, attendanceMode);
+      setMessage(`${identity==="affia"?"Affia":"In-store Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The attendance request could not be completed.");
+    } finally {
+      setAttendancePassword(""); setBusy(false);
+    }
   }
 
   async function signOut(){

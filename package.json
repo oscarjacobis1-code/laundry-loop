@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build:public-css": "node scripts/build-public-css.mjs",
+    "build": "npm run build:public-css && next build",
     "start": "next start",
     "test": "node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs",
     "lint": "eslint . --ignore-pattern .next"

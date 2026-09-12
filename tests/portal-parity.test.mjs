@@ -31,8 +31,11 @@ test("requires supervisor approval and a reason for cancellation or refund", () 
 });
 
 test("keeps attendance authentication isolated from system access", () => {
-  assert.match(portal, /attendanceSupabase\.auth\.signInWithPassword/);
-  assert.match(portal, /attendanceSupabase\.auth\.signOut\(\{scope:"local"\}\)/);
+  assert.match(portal, /runAttendanceAction\(email\.trim\(\), attendancePassword, attendanceMode\)/);
+  assert.match(supabaseClient, /auth\/v1\/token\?grant_type=password/);
+  assert.match(supabaseClient, /rest\/v1\/rpc\/\$\{mode === "in" \? "staff_check_in" : "staff_check_out"\}/);
+  assert.match(supabaseClient, /auth\/v1\/logout/);
+  assert.doesNotMatch(supabaseClient, /attendanceSupabase/);
   assert.match(portal, /attendancePassword/);
   assert.doesNotMatch(portal, /await supabase\.auth\.signOut\(\); setPassword\(""\)/);
 });

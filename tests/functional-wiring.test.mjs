@@ -11,6 +11,7 @@ const cmsMigration = await readFile(new URL("../supabase/migrations/202608230300
 const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
 const subscriptionMigration = await readFile(new URL("../supabase/migrations/20260830020000_subscription_accounts_and_loop_credits.sql", import.meta.url), "utf8");
 const operationsMigration = await readFile(new URL("../supabase/migrations/20260901010000_inventory_sessions_and_subscription_operations.sql", import.meta.url), "utf8");
+const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
 test("every public payment panel referenced by the controller exists", () => {
   const panelIds = new Set([...publicHtml.matchAll(/id="payment-step-([a-z]+)"/g)].map((match) => match[1]));
@@ -22,6 +23,12 @@ test("every public payment panel referenced by the controller exists", () => {
   assert.deepEqual(new Set(controlled), panelIds);
   assert.equal(panelIds.has("card"), false);
   assert.match(controller, /if \(panel\)/);
+});
+
+test("public Tailwind styles are compiled during production builds", () => {
+  assert.doesNotMatch(publicHtml, /cdn\.tailwindcss\.com/);
+  assert.match(publicHtml, /href="\/public-tailwind\.css"/);
+  assert.match(packageJson.scripts.build, /build:public-css/);
 });
 
 test("the production order layer initializes and owns public persistence", () => {
