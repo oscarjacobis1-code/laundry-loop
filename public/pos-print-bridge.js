@@ -9,111 +9,62 @@
     return node && node.innerText && node.innerText.trim() ? node.innerText.trim() : '';
   }
 
-  function printableText(mode = 'receipt') {
-    if (mode === 'tag') {
-      const tag = textFrom('#printable-bag-tag');
-      if (tag) return tag;
-    }
-    const receipt = textFrom('#printable-receipt');
-    if (receipt) return receipt;
-    const candidates = ['[data-print-sheet]', '.print-sheet', '.receipt', '.order-print'];
-    for (const selector of candidates) {
-      const text = textFrom(selector);
-      if (text) return text;
-    }
-    return '';
+  function printableText(mode) {
+    const selector = mode === 'tag' ? '#printable-bag-tag' : '#printable-receipt';
+    return textFrom(selector);
   }
 
-  function query(text, openDrawer = false) {
-    return new URLSearchParams({
+  function bridgeUrl(text, openDrawer = false) {
+    const params = new URLSearchParams({
       text: String(text),
       drawer: openDrawer ? '1' : '0',
-      source: location.origin,
-    }).toString();
+    });
+    return `laundryloop-print://print?${params.toString()}`;
   }
 
-  function customSchemeUrl(text, openDrawer = false) {
-    return `laundryloop-print://print?${query(text, openDrawer)}`;
-  }
-
-  function androidIntentUrl(text, openDrawer = false) {
-    const data = query(text, openDrawer);
-    return `intent://print?${data}#Intent;scheme=laundryloop-print;package=com.laundryloop.printbridge;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
-  }
-
-  function launchAndroidBridge(text, openDrawer = false) {
-    if (!text || !String(text).trim()) {
-      alert('Receipt is not ready to print. Close this message and try again.');
-      return false;
+  function launch(mode, openDrawer = false) {
+    const text = printableText(mode);
+    if (!text) {
+      alert('Receipt is not ready to print.');
+      return;
     }
-
-    // This navigation must happen synchronously inside the user's tap. Chrome
-    // and MIUI can block external-app intents launched later by setTimeout.
-    window.location.href = androidIntentUrl(String(text), openDrawer);
-    return true;
-  }
-
-  function sendToBridge(text, openDrawer = false) {
-    if (!text || !String(text).trim()) throw new Error('Nothing to print.');
-    if (isAndroid) return launchAndroidBridge(text, openDrawer);
-    window.location.href = customSchemeUrl(String(text), openDrawer);
-    return true;
+    window.location.assign(bridgeUrl(text, openDrawer));
   }
 
   window.__LAUNDRY_BROWSER_PRINT__ = browserPrint;
   window.__LAUNDRY_PRINT_BRIDGE__ = {
     available: isAndroid,
-    printText(text, options = {}) {
-      if (!isAndroid) return browserPrint();
-      return launchAndroidBridge(text, options.openDrawer === true);
-    },
     printReceipt(options = {}) {
-      const text = printableText('receipt');
       if (!isAndroid) return browserPrint();
-      return launchAndroidBridge(text, options.openDrawer === true);
+      launch('receipt', options.openDrawer === true);
     },
-    printTag(options = {}) {
-      const text = printableText('tag');
+    printTag() {
       if (!isAndroid) return browserPrint();
-      return launchAndroidBridge(text, options.openDrawer === true);
-    },
-    configure() {
-      if (isAndroid) {
-        window.location.href = `intent://configure#Intent;scheme=laundryloop-print;package=com.laundryloop.printbridge;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
-      }
+      launch('tag', false);
     },
     browserPrint,
   };
 
   if (!isAndroid) return;
 
-  // IMPORTANT: launch the Android intent during the physical button tap.
-  // Portal.tsx currently delays window.print() with setTimeout, which loses
-  // Chrome's user-activation permission for opening an external app.
+  // Launch directly from the user's tap. Do not route through window.print,
+  // timers, Android intent URLs, or the browser print/PDF system.
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
     const button = target.closest('button.print-action');
     if (!button) return;
 
-    const label = (button.textContent || '').trim().toLowerCase();
-    let mode = null;
-    if (label.includes('print receipt')) mode = 'receipt';
-    if (label.includes('print bag tag')) mode = 'tag';
+    const label = (button.textContent || '').toLowerCase();
+    const mode = label.includes('bag tag') ? 'tag' : label.includes('receipt') ? 'receipt' : null;
     if (!mode) return;
 
-    const text = printableText(mode);
     event.preventDefault();
     event.stopPropagation();
-    event.stopImmediatePropagation();
-    launchAndroidBridge(text, false);
+    launch(mode, false);
   }, true);
 
-  // Compatibility fallback only. The primary Android path above is the direct
-  // physical click because this function may be reached after a timer.
-  window.print = () => {
-    const tagVisible = document.body.classList.contains('print-tag');
-    const text = printableText(tagVisible ? 'tag' : 'receipt');
-    launchAndroidBridge(text, false);
-  };
+  // Existing React code calls window.print after a timer. The direct click
+  // handler above already handled Android printing, so suppress that second path.
+  window.print = () => {};
 })();
