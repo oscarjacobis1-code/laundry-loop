@@ -1,17 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:theme="@style/AppTheme" android:label="Laundry Loop Printer" android:usesCleartextTraffic="true">
-        <activity android:name=".MainActivity" android:exported="true">
+
+    <application
+        android:theme="@style/AppTheme"
+        android:label="Laundry Loop Printer"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="laundryloop-print" />
+                <data android:scheme="laundryloop-print" android:host="print" />
+                <data android:scheme="laundryloop-print" android:host="configure" />
+            </intent-filter>
+
+            <!-- Android can also hand the site's printer route directly to this app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="thelaundryloop.net" android:pathPrefix="/printer-bridge" />
             </intent-filter>
         </activity>
     </application>
