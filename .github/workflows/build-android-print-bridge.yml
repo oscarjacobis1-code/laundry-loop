@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - feature/android-pos-print-bridge
     paths:
       - 'android-print-bridge/**'
