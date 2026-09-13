@@ -25,3 +25,56 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@page {
+  size: 80mm 160mm;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 80mm !important;
+    min-width: 80mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .modal-overlay,
+  .receipt-modal {
+    position: static !important;
+    inset: auto !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .print-receipt #printable-receipt {
+    position: static !important;
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+  }
+
+  .print-tag #printable-bag-tag {
+    position: static !important;
+    width: 72mm !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
+}
