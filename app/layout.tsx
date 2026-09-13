@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AndroidPrintBridge from "./portal/AndroidPrintBridge";
+import SupervisorServiceGate from "./portal/SupervisorServiceGate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <AndroidPrintBridge />
+        <SupervisorServiceGate />
         {children}
       </body>
     </html>
