@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import vm from "node:vm";
 
 const bridge = await readFile(new URL("../public/pos-print-bridge.js", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
@@ -26,6 +27,68 @@ test("direct print bridge sends structured receipt metadata", () => {
   assert.match(bridge, /params\.set\('order', meta\.order\)/);
   assert.match(bridge, /params\.set\('payment', meta\.payment\)/);
   assert.doesNotMatch(bridge, /params\.set\('drawer'/);
+});
+
+test("an Android Print receipt tap launches the app intent without calling browser print", () => {
+  let clickHandler;
+  let browserPrintCalls = 0;
+
+  class FakeElement {
+    constructor(textContent = "") { this.textContent = textContent; }
+    closest(selector) { return selector === ".modal-actions button.print-action" ? this : null; }
+  }
+
+  const receipt = {
+    innerText: "Laundry Loop\nFresh. Folded. Done.\nLL-TEST-001\nPayment: Cash · Paid\nTotal GYD 300",
+    querySelector(selector) {
+      if (selector === "h2") return { textContent: "LL-TEST-001" };
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "p") return [{ textContent: "Payment: Cash · Paid" }];
+      return [];
+    },
+  };
+
+  const context = {
+    navigator: { userAgent: "Mozilla/5.0 (Linux; Android 12) Chrome/140" },
+    URLSearchParams,
+    Element: FakeElement,
+    alert() {},
+    window: {
+      print() { browserPrintCalls += 1; },
+      location: { href: "" },
+    },
+    document: {
+      querySelector(selector) {
+        if (selector === "#printable-receipt") return receipt;
+        if (selector === ".receipt-modal") return { classList: { contains: () => false } };
+        return null;
+      },
+      addEventListener(type, handler) {
+        if (type === "click") clickHandler = handler;
+      },
+    },
+  };
+
+  vm.runInNewContext(bridge, context);
+  assert.equal(context.window.__LAUNDRY_DIRECT_PRINT_READY__, true);
+  assert.equal(typeof clickHandler, "function");
+
+  const button = new FakeElement("Print receipt");
+  clickHandler({
+    target: button,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  });
+
+  assert.equal(browserPrintCalls, 0);
+  assert.match(context.window.location.href, /^intent:\/\/print\?/);
+  assert.match(context.window.location.href, /mode=receipt/);
+  assert.match(context.window.location.href, /order=LL-TEST-001/);
+  assert.match(context.window.location.href, /payment=Cash/);
+  assert.match(context.window.location.href, /package=com\.laundryloop\.printbridge/);
 });
 
 test("Android app exposes only the direct receipt intent and no PrintService", () => {
