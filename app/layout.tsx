@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+import AndroidPrintBridge from "./portal/AndroidPrintBridge";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <Script src="/pos-print-bridge.js?v=escpos-v2" strategy="beforeInteractive" />
+        <AndroidPrintBridge />
         {children}
       </body>
     </html>
