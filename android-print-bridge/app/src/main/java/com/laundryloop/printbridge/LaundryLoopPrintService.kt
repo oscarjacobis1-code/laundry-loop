@@ -10,10 +10,10 @@ import android.print.PrinterInfo
 import android.printservice.PrintJob
 import android.printservice.PrintService
 import android.printservice.PrinterDiscoverySession
-import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.concurrent.thread
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class LaundryLoopPrintService : PrintService() {
@@ -41,8 +41,7 @@ class LaundryLoopPrintService : PrintService() {
             try {
                 val document = printJob.document ?: error("No print document received")
                 val data = document.data ?: error("No print data received")
-                val bytes = renderPdfToEscPos(data)
-                sendToPrinter(bytes)
+                printPdfToPrinter(data)
                 printJob.complete()
             } catch (e: Exception) {
                 printJob.fail(e.message ?: "Laundry Loop printer failed")
@@ -72,38 +71,81 @@ class LaundryLoopPrintService : PrintService() {
             .build()
     }
 
-    private fun renderPdfToEscPos(fd: android.os.ParcelFileDescriptor): ByteArray {
-        val out = ByteArrayOutputStream()
-        out.write(byteArrayOf(0x1B, 0x40)) // initialize
-        PdfRenderer(fd).use { renderer ->
-            for (index in 0 until renderer.pageCount) {
-                renderer.openPage(index).use { page ->
-                    val scale = PRINT_WIDTH_DOTS.toFloat() / page.width.toFloat()
-                    val height = (page.height * scale).roundToInt().coerceAtLeast(1)
-                    val bitmap = Bitmap.createBitmap(PRINT_WIDTH_DOTS, height, Bitmap.Config.ARGB_8888)
-                    bitmap.eraseColor(Color.WHITE)
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                    out.write(bitmapToEscPos(bitmap))
-                    bitmap.recycle()
+    private fun printPdfToPrinter(fd: android.os.ParcelFileDescriptor) {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(printerHost(), printerPort()), CONNECT_TIMEOUT_MS)
+            socket.soTimeout = READ_TIMEOUT_MS
+            socket.tcpNoDelay = true
+
+            val stream = socket.getOutputStream()
+            stream.write(byteArrayOf(0x1B, 0x40))
+            stream.flush()
+
+            PdfRenderer(fd).use { renderer ->
+                for (index in 0 until renderer.pageCount) {
+                    renderer.openPage(index).use { page ->
+                        val scale = PRINT_WIDTH_DOTS.toFloat() / page.width.toFloat()
+                        val fullHeight = (page.height * scale).roundToInt().coerceAtLeast(1)
+                        val bitmap = Bitmap.createBitmap(PRINT_WIDTH_DOTS, fullHeight, Bitmap.Config.ARGB_8888)
+                        bitmap.eraseColor(Color.WHITE)
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+
+                        val lastDarkRow = findLastNonWhiteRow(bitmap)
+                        if (lastDarkRow >= 0) {
+                            var top = 0
+                            while (top <= lastDarkRow) {
+                                val bandHeight = min(BAND_HEIGHT_ROWS, lastDarkRow - top + 1)
+                                val band = Bitmap.createBitmap(bitmap, 0, top, PRINT_WIDTH_DOTS, bandHeight)
+                                val bytes = bitmapBandToEscPos(band)
+                                band.recycle()
+
+                                stream.write(bytes)
+                                stream.flush()
+                                Thread.sleep(BAND_PAUSE_MS)
+                                top += bandHeight
+                            }
+                        }
+
+                        bitmap.recycle()
+                    }
                 }
             }
+
+            stream.write(byteArrayOf(0x0A, 0x0A, 0x0A))
+            stream.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
+            stream.flush()
         }
-        out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
-        out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // cut
-        return out.toByteArray()
     }
 
-    private fun bitmapToEscPos(bitmap: Bitmap): ByteArray {
+    private fun findLastNonWhiteRow(bitmap: Bitmap): Int {
+        for (y in bitmap.height - 1 downTo 0) {
+            var x = 0
+            while (x < bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                val alpha = Color.alpha(pixel)
+                val gray = (Color.red(pixel) * 30 + Color.green(pixel) * 59 + Color.blue(pixel) * 11) / 100
+                if (alpha > 32 && gray < 245) return y
+                x += 4
+            }
+        }
+        return -1
+    }
+
+    private fun bitmapBandToEscPos(bitmap: Bitmap): ByteArray {
         val width = bitmap.width
         val height = bitmap.height
         val widthBytes = (width + 7) / 8
-        val out = ByteArrayOutputStream()
-        out.write(byteArrayOf(
-            0x1D, 0x76, 0x30, 0x00,
-            (widthBytes and 0xFF).toByte(), ((widthBytes shr 8) and 0xFF).toByte(),
-            (height and 0xFF).toByte(), ((height shr 8) and 0xFF).toByte()
-        ))
+        val output = ByteArray(8 + widthBytes * height)
+        output[0] = 0x1D
+        output[1] = 0x76
+        output[2] = 0x30
+        output[3] = 0x00
+        output[4] = (widthBytes and 0xFF).toByte()
+        output[5] = ((widthBytes shr 8) and 0xFF).toByte()
+        output[6] = (height and 0xFF).toByte()
+        output[7] = ((height shr 8) and 0xFF).toByte()
 
+        var offset = 8
         for (y in 0 until height) {
             for (xByte in 0 until widthBytes) {
                 var value = 0
@@ -115,21 +157,10 @@ class LaundryLoopPrintService : PrintService() {
                     val gray = (Color.red(pixel) * 30 + Color.green(pixel) * 59 + Color.blue(pixel) * 11) / 100
                     if (alpha > 32 && gray < 180) value = value or (0x80 shr bit)
                 }
-                out.write(value)
+                output[offset++] = value.toByte()
             }
         }
-        return out.toByteArray()
-    }
-
-    private fun sendToPrinter(bytes: ByteArray) {
-        Socket().use { socket ->
-            socket.connect(InetSocketAddress(printerHost(), printerPort()), 4000)
-            socket.soTimeout = 4000
-            socket.getOutputStream().use { stream ->
-                stream.write(bytes)
-                stream.flush()
-            }
-        }
+        return output
     }
 
     private fun printerHost(): String = prefs.getString("host", "192.168.1.87")?.trim().orEmpty()
@@ -138,5 +169,9 @@ class LaundryLoopPrintService : PrintService() {
     companion object {
         private const val PRINTER_LOCAL_ID = "rongta-80mm"
         private const val PRINT_WIDTH_DOTS = 576
+        private const val BAND_HEIGHT_ROWS = 96
+        private const val BAND_PAUSE_MS = 35L
+        private const val CONNECT_TIMEOUT_MS = 3000
+        private const val READ_TIMEOUT_MS = 3000
     }
 }
