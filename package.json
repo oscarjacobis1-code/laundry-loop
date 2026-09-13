@@ -10,7 +10,7 @@
     "build:public-css": "node scripts/build-public-css.mjs",
     "build": "npm run build:public-css && next build",
     "start": "next start",
-    "test": "node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs",
+    "test": "node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs",
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {
