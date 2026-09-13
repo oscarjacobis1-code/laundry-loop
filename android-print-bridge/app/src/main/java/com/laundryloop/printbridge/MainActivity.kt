@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
                     openDrawer = false,
                     finishWhenDone = false,
                     printedOrder = null,
+                    mode = "receipt",
                 )
             }
         }
@@ -72,7 +73,7 @@ class MainActivity : AppCompatActivity() {
             text = "Test cash drawer"
             setOnClickListener {
                 savePrinter()
-                sendPrint("", true, false, null)
+                sendPrint("", true, false, null, "receipt")
             }
         }
 
@@ -113,8 +114,9 @@ class MainActivity : AppCompatActivity() {
 
         val order = sanitizeOrderCode(uri.getQueryParameter("order"))
         val payment = uri.getQueryParameter("payment")?.trim()?.lowercase().orEmpty()
+        val suppressDrawer = uri.getQueryParameter("suppress_drawer") == "1"
         val isFirstSuccessfulPrint = order != null && !wasPrinted(order)
-        val openDrawer = mode == "receipt" && payment == "cash" && isFirstSuccessfulPrint
+        val openDrawer = mode == "receipt" && payment == "cash" && isFirstSuccessfulPrint && !suppressDrawer
 
         status.text = "Sending directly to Rongta…"
         sendPrint(
@@ -122,6 +124,7 @@ class MainActivity : AppCompatActivity() {
             openDrawer = openDrawer,
             finishWhenDone = true,
             printedOrder = if (mode == "receipt") order else null,
+            mode = mode,
         )
     }
 
@@ -180,13 +183,11 @@ class MainActivity : AppCompatActivity() {
     private fun markPrinted(order: String) {
         val existing = prefs.getStringSet("printed_orders", emptySet()).orEmpty().toMutableSet()
         existing += order
-        // Keep this bounded on the dedicated tablet. Old order codes only matter
-        // for preventing accidental repeat drawer pulses, not accounting history.
         val bounded = existing.toList().takeLast(MAX_TRACKED_PRINTED_ORDERS).toSet()
         prefs.edit().putStringSet("printed_orders", bounded).apply()
     }
 
-    private fun sendPrint(text: String, openDrawer: Boolean, finishWhenDone: Boolean, printedOrder: String?) {
+    private fun sendPrint(text: String, openDrawer: Boolean, finishWhenDone: Boolean, printedOrder: String?, mode: String) {
         val printerHost = prefs.getString("host", "192.168.1.87")?.trim().orEmpty()
         val printerPort = prefs.getInt("port", 9100)
         if (printerHost.isBlank()) {
@@ -197,7 +198,7 @@ class MainActivity : AppCompatActivity() {
         status.text = "Sending to $printerHost:$printerPort…"
         thread(name = "LaundryLoopDirectPrint") {
             try {
-                val payload = buildPayload(text, openDrawer)
+                val payload = buildPayload(text, openDrawer, printedOrder, mode)
                 SocketChannel.open().use { channel ->
                     channel.configureBlocking(false)
                     channel.socket().tcpNoDelay = true
@@ -228,17 +229,24 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     status.text = "Printer error: ${e.message ?: "connection failed"}"
-                    // Leave the app open on failure so staff can see the error and retry.
                 }
             }
         }
     }
 
-    private fun buildPayload(text: String, openDrawer: Boolean): ByteArray {
+    private fun buildPayload(text: String, openDrawer: Boolean, orderCode: String?, mode: String): ByteArray {
         val out = ByteArrayOutputStream()
         out.write(byteArrayOf(0x1B, 0x40)) // initialize
+        out.write(byteArrayOf(0x1B, 0x4D, 0x00)) // Font A: boxier 48-column printer font
+
         if (text.isNotBlank()) {
-            out.write(text.toByteArray(Charsets.US_ASCII))
+            if (mode == "receipt") {
+                writeStyledReceipt(out, text, orderCode)
+            } else {
+                out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center bag tag
+                out.write(text.toByteArray(Charsets.US_ASCII))
+                out.write(byteArrayOf(0x1B, 0x61, 0x00))
+            }
             out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
             out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // partial cut
         }
@@ -246,8 +254,47 @@ class MainActivity : AppCompatActivity() {
         return out.toByteArray()
     }
 
+    private fun writeStyledReceipt(out: ByteArrayOutputStream, text: String, orderCode: String?) {
+        val border = "+" + "-".repeat(RECEIPT_COLUMNS) + "+"
+        val lines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
+
+        out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center entire receipt on 80 mm paper
+        writeAsciiLine(out, border)
+
+        for (line in lines) {
+            val isOrderCode = orderCode != null && line.equals(orderCode, ignoreCase = true)
+            if (isOrderCode) {
+                out.write(byteArrayOf(0x1B, 0x45, 0x01)) // bold
+                out.write(byteArrayOf(0x1D, 0x21, 0x10)) // double-height order code, normal width
+            }
+
+            val centered = centerText(line, RECEIPT_COLUMNS)
+            writeAsciiLine(out, "|$centered|")
+
+            if (isOrderCode) {
+                out.write(byteArrayOf(0x1D, 0x21, 0x00))
+                out.write(byteArrayOf(0x1B, 0x45, 0x00))
+            }
+        }
+
+        writeAsciiLine(out, border)
+        out.write(byteArrayOf(0x1B, 0x61, 0x00))
+    }
+
+    private fun centerText(value: String, width: Int): String {
+        val clipped = value.take(width)
+        val left = ((width - clipped.length) / 2).coerceAtLeast(0)
+        val right = (width - clipped.length - left).coerceAtLeast(0)
+        return " ".repeat(left) + clipped + " ".repeat(right)
+    }
+
+    private fun writeAsciiLine(out: ByteArrayOutputStream, value: String) {
+        out.write(value.toByteArray(Charsets.US_ASCII))
+        out.write(0x0A)
+    }
+
     companion object {
-        private const val RECEIPT_COLUMNS = 48
+        private const val RECEIPT_COLUMNS = 44
         private const val MAX_INPUT_CHARS = 6000
         private const val MAX_TRACKED_PRINTED_ORDERS = 5000
         private const val CONNECT_TIMEOUT_MS = 3000L
