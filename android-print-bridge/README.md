@@ -1,29 +1,46 @@
 # Laundry Loop Android Print Bridge
 
-This companion Android app receives print requests from the Laundry Loop web POS and sends raw ESC/POS data to the receipt printer over the laundromat LAN.
+This companion Android app receives receipt and bag-tag print requests from the Laundry Loop web POS and sends raw ESC/POS data directly to the Rongta network printer over the laundromat LAN.
 
-## Intended hardware path
+## Production hardware path
 
 Redmi tablet (Wi-Fi) -> router -> Ethernet -> Rongta RP326 -> cash drawer
 
+## Production print path
+
+Laundry Loop POS -> explicit Android intent -> Laundry Loop Printer app -> raw ESC/POS TCP -> Rongta
+
+There is no Android PrintService, PDF generation, PDF preview, raster conversion, or system print spooler in the normal POS receipt path.
+
 ## Before deployment
 
-1. Confirm the RP326 variant has an Ethernet/LAN interface and supports raw ESC/POS network printing.
-2. Connect the printer to the router and print its self-test/configuration receipt.
-3. Record the printer IP and raw print port. Port 9100 is the app default, not an assumption that every RP326 uses it.
-4. Reserve the printer IP in the router/DHCP settings so it does not change.
-5. Install this app on the dedicated Redmi tablet.
-6. Open Laundry Loop Printer, enter the printer IP/port, save, and run Test print.
-7. Connect the cash drawer to the printer's DK/DRAWER port, never the LAN port, then run Test cash drawer.
+1. Confirm the printer self-test shows the expected Ethernet settings.
+2. Reserve the printer IP in the router so it does not change.
+3. Install the Laundry Loop Printer app on the dedicated Redmi tablet.
+4. Open the app, confirm IP `192.168.1.87` and port `9100`, then save.
+5. Run **Test print** and **Test cash drawer** locally in the app.
+6. Open the POS and test one real receipt from the Receipt modal.
 
 ## Safety / transaction behavior
 
-The bridge does not create or update orders. Supabase remains the transaction system of record. A printer failure therefore cannot erase a completed order. Receipt printing and drawer opening are separate operations. The drawer is not automatically opened by a normal receipt print in this first integration; that will be enabled only for confirmed cash-payment events after hardware testing.
+Supabase remains the transaction system of record. Printing never creates or recreates an order.
 
-## Browser fallback
+Incoming browser text is normalized to printer-safe ASCII, ESC/control bytes are stripped, and receipt input length is capped before anything is sent to the printer.
 
-The existing browser print path remains available as `window.__LAUNDRY_BROWSER_PRINT__()` on Android and remains the normal behavior on non-Android devices.
+The browser cannot request a raw drawer pulse. The app derives drawer behavior from structured receipt metadata: a valid first successful receipt print for a Cash order can open the drawer. The app remembers successfully printed order codes so reprints do not pulse the drawer again. MMG and bag-tag prints never open the drawer.
 
-## Next hardware test
+If the printer connection or write fails, the app remains open and shows the printer error so staff can retry. Failed jobs are not recorded as successfully printed.
 
-Verify the exact RP326 interface, IP/port, character encoding, cutter command, and drawer pulse against the physical unit before enabling automatic cash drawer opening in production.
+## Printer assumptions verified on site
+
+- ESC/POS compatible Rongta printer
+- IP: `192.168.1.87`
+- Raw TCP port: `9100`
+- 80 mm paper
+- Cutter tested
+- Cash drawer pulse tested
+- Direct text receipt test passed
+
+## Release note
+
+GitHub Actions currently produces a debug commissioning APK. Before final production handover, create a signed Android release keystore and store its values in repository Actions secrets so a signed release APK can be generated and updated safely.
