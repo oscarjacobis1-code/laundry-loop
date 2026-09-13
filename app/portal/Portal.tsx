@@ -38,6 +38,7 @@ type SiteContent = {
 
 const statuses = ["Received", "Washing", "Drying", "Ready for Pick-Up", "Picked Up (Archived)", "Cancelled/Refunded"];
 const paymentStatuses = ["Pay at Pickup", "Pending Confirmation", "Paid", "Refunded"];
+const orderColumns = "id,tracking_code,customer_name,customer_phone,items,weight_summary,subtotal,discount,total,status,notes,order_type,scheduled_date,scale_photo_path,payment,created_at,entry_source,original_transaction_at,paper_reference";
 const emptyPos: PosState = { name: "", phone: "", notes: "", paymentMethod: "Cash", paymentStatus: "Pay at Pickup", paymentReference: "", discountMode: "amount", discountValue: "" };
 const money = (value: number | string | null | undefined) => `GYD ${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 const phoneDigits = (value: string) => {
@@ -62,7 +63,11 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("orders");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
+  const [completedSearch, setCompletedSearch] = useState("");
+  const [completedBusy, setCompletedBusy] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -92,9 +97,25 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   const isAdmin = profile?.role === "admin";
 
+  const loadCompletedOrders = useCallback(async (rawSearch = "") => {
+    const searchTerm = rawSearch.replace(/[^\p{L}\p{N}\s+-]/gu, "").trim().slice(0, 80);
+    setCompletedBusy(true);
+    let query = supabase.from("orders").select(orderColumns).eq("status", "Picked Up (Archived)").order("created_at", { ascending: false }).limit(200);
+    if (searchTerm) {
+      const digits = searchTerm.replace(/\D/g, "");
+      const filters = [`tracking_code.ilike.%${searchTerm}%`, `customer_name.ilike.%${searchTerm}%`];
+      if (digits) filters.push(`customer_phone.ilike.%${digits}%`);
+      query = query.or(filters.join(","));
+    }
+    const { data, error } = await query;
+    if (error) setMessage(`Completed orders could not be loaded: ${error.message}`);
+    else setCompletedOrders((data as Order[]) ?? []);
+    setCompletedBusy(false);
+  }, [supabase]);
+
   const loadDashboard = useCallback(async () => {
     const [orderResult, serviceResult, inventoryResult, summaryResult, subscriptionResult] = await Promise.all([
-      supabase.from("orders").select("id,tracking_code,customer_name,customer_phone,items,weight_summary,subtotal,discount,total,status,notes,order_type,scheduled_date,scale_photo_path,payment,created_at,entry_source,original_transaction_at,paper_reference").order("created_at", { ascending: false }).limit(500),
+      supabase.from("orders").select(orderColumns).order("created_at", { ascending: false }).limit(500),
       supabase.from("service_catalog").select("id,name,category,rate,unit,active").order("category").order("name"),
       supabase.rpc("staff_inventory_summary"),
       supabase.rpc("staff_operations_summary", { p_days: 30 }),
@@ -113,6 +134,12 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setSummary((summaryResult.data as Summary) ?? null);
     setSubscriptions((subscriptionResult.data as Subscription[]) ?? []);
   }, [supabase]);
+
+  useEffect(() => {
+    if (!profile || view !== "operations") return;
+    const timer = window.setTimeout(() => void loadCompletedOrders(completedSearch), 300);
+    return () => window.clearTimeout(timer);
+  }, [completedSearch, loadCompletedOrders, profile, view]);
 
   const loadAdmin = useCallback(async () => {
     const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-7);
@@ -436,8 +463,12 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     ...(isAdmin ? [["content", "Website content", ""], ["services", "Services & pricing", ""], ["team", "Staff", ""], ["security", "Recovery alerts", String(alerts.filter((a) => !a.resolved_at).length)]] as Array<[View, string, string]> : []),
   ];
 
-  return <main className="ops-shell">
-    <aside className={`ops-sidebar ${menuOpen ? "open" : ""}`}>
+  return <main className={`ops-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${menuOpen ? "menu-open" : ""}`}>
+    {menuOpen && <button className="sidebar-scrim" type="button" aria-label="Close navigation menu" onClick={() => setMenuOpen(false)}/>}
+    <aside className={`ops-sidebar ${menuOpen ? "open" : ""}`} aria-label="Dashboard navigation">
+      <button type="button" className="sidebar-toggle" onClick={() => window.matchMedia("(max-width: 980px)").matches ? setMenuOpen(false) : setSidebarCollapsed((collapsed) => !collapsed)} aria-label={menuOpen ? "Close dashboard sidebar" : sidebarCollapsed ? "Expand dashboard sidebar" : "Collapse dashboard sidebar"} aria-expanded={menuOpen || !sidebarCollapsed}>
+        <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+      </button>
       <div className="ops-brand">
 <span>LL</span>
 <div>
@@ -445,17 +476,17 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <small>{isAdmin ? "Administrator" : "Staff workspace"}</small>
 </div>
 </div>
-      <nav>{navigation.map(([key, label, count]) => <button key={key} className={view === key ? "active" : ""} onClick={() => showView(key)}>
-<span>{label}</span>{count && <b>{count}</b>}</button>)}</nav>
+      <nav>{navigation.map(([key, label, count]) => <button key={key} title={sidebarCollapsed ? label : undefined} aria-label={label} className={view === key ? "active" : ""} onClick={() => showView(key)}>
+<span className="nav-label">{label}</span><span className="nav-short" aria-hidden="true">{label === "New POS order" ? "+" : label.charAt(0)}</span>{count && <b>{count}</b>}</button>)}</nav>
       <div className="sidebar-user">
 <strong>{profile.display_name}</strong>
 <small>{profile.role}</small>
-<button onClick={() => void signOut()}>Sign out</button>
+<button title={sidebarCollapsed ? "Sign out" : undefined} aria-label="Sign out" onClick={() => void signOut()}><span className="signout-label">Sign out</span><span className="signout-short" aria-hidden="true">↪</span></button>
 </div>
     </aside>
     <section className="ops-main">
       <header className="ops-topbar">
-<button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Open staff menu">☰</button>
+<button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? "Close dashboard menu" : "Open dashboard menu"}>☰</button>
 <div>
 <p className="eyebrow">Laundry operations</p>
 <h1>{navigation.find(([key]) => key === view)?.[1]}</h1>
@@ -706,6 +737,25 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <p>Busiest order hour: <strong>{summary?.busiest_hour == null ? "Not enough data" : `${String(summary.busiest_hour).padStart(2, "0")}:00`}</strong>
 </p>
 <p className="muted">This view updates from real order and status history—not browser storage.</p>
+</div>
+<div className="panel completed-orders-panel">
+<div className="section-heading completed-heading"><div><p className="eyebrow">Order history</p><h2>Completed / delivered orders</h2></div><span className="badge">{completedOrders.length}{completedOrders.length === 200 ? "+" : ""} shown</span></div>
+<p className="muted">Search past pickups by customer name, WhatsApp number or tracking code.</p>
+<div className="completed-search">
+<input aria-label="Search completed orders" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Name, phone number or order code…"/>
+{completedSearch && <button type="button" className="secondary" onClick={() => setCompletedSearch("")}>Clear</button>}
+</div>
+<div className="table-wrap completed-table-wrap">
+<table className="completed-orders-table"><thead><tr><th>Code / received</th><th>Customer</th><th>Laundry / notes</th><th>Total</th><th>Payment</th><th>Actions</th></tr></thead>
+<tbody>{completedBusy ? <tr><td colSpan={6} className="empty">Searching completed orders…</td></tr> : completedOrders.length ? completedOrders.map((order) => <tr key={order.id}>
+<td><strong className="mono">{order.tracking_code}</strong><small>{dateTime(order.created_at)}</small></td>
+<td><strong>{order.customer_name}</strong><small>{order.customer_phone}</small></td>
+<td><strong>{order.weight_summary || order.order_type}</strong><small>{order.notes || "No care notes"}</small></td>
+<td><strong>{money(order.total)}</strong></td>
+<td><span className={`badge pay-${(order.payment?.status || "pending").toLowerCase().replaceAll(" ", "-")}`}>{order.payment?.status || "Pending"}</span><small>{order.payment?.method || "—"}</small></td>
+<td><div className="history-actions"><button className="print-action" onClick={() => setSelectedOrder(order)}>Receipt</button><button className="whatsapp-action" onClick={() => whatsapp(order)}>WhatsApp</button></div></td>
+</tr>) : <tr><td colSpan={6} className="empty">{completedSearch ? "No completed orders match that search." : "No completed or delivered orders yet."}</td></tr>}</tbody></table>
+</div>
 </div>
 <div className="panel subscription-operations">
 <div className="section-heading"><div><p className="eyebrow">Subscriptions</p><h2>Subscription control</h2></div><span className="badge">{subscriptions.filter(item=>item.subscription_status==="Pending Verification").length} new</span></div>

@@ -126,6 +126,19 @@ test("subscription confirmation provides copy and operations controls", () => {
   assert.match(operationsMigration, /case when s\.status='Active' and s\.ends_at<=now\(\) then 'Expired'/);
 });
 
+test("dashboard sidebar collapses and completed orders stay searchable", () => {
+  assert.match(portal, /sidebarCollapsed/);
+  assert.match(portal, /"Expand dashboard sidebar"/);
+  assert.match(portal, /"Collapse dashboard sidebar"/);
+  assert.match(portalCss, /\.ops-shell\.sidebar-collapsed\{grid-template-columns:76px/);
+  assert.match(portal, /Completed \/ delivered orders/);
+  assert.match(portal, /\.eq\("status", "Picked Up \(Archived\)"\)/);
+  assert.match(portal, /tracking_code\.ilike/);
+  assert.match(portal, /customer_name\.ilike/);
+  assert.match(portal, /customer_phone\.ilike/);
+  assert.match(portal, /aria-label="Search completed orders"/);
+});
+
 test("all portals use tab-scoped sessions with a 20-minute idle timeout", async () => {
   const portalSupabase = await readFile(new URL("../app/portal/supabase.ts", import.meta.url), "utf8");
   assert.match(portalSupabase, /window\.sessionStorage/);
