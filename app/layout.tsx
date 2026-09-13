@@ -23,7 +23,22 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
-        <Script src="/pos-print-bridge.js?v=direct-escpos-v18" strategy="afterInteractive" />
+        <Script src="/pos-print-bridge.js?v=direct-escpos-v19" strategy="afterInteractive" />
+        <Script id="laundry-direct-print-override" strategy="afterInteractive">{`
+          (() => {
+            if (!/Android/i.test(navigator.userAgent)) return;
+            const originalPrint = window.print.bind(window);
+            window.print = function () {
+              const bridge = window.__LAUNDRY_PRINT_BRIDGE__;
+              if (bridge && bridge.available) {
+                const modal = document.querySelector('.receipt-modal');
+                if (modal && modal.classList.contains('print-tag')) return bridge.printTag();
+                return bridge.printReceipt();
+              }
+              return originalPrint();
+            };
+          })();
+        `}</Script>
       </body>
     </html>
   );
