@@ -3,18 +3,21 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const bridge = await readFile(new URL("../app/portal/AndroidPrintBridge.tsx", import.meta.url), "utf8");
+const gate = await readFile(new URL("../app/portal/SupervisorServiceGate.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const manifest = await readFile(new URL("../android-print-bridge/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
 const mainActivity = await readFile(new URL("../android-print-bridge/app/src/main/java/com/laundryloop/printbridge/MainActivity.kt", import.meta.url), "utf8");
 
-test("root layout mounts the bundled Android direct-print bridge", () => {
+test("root layout mounts direct printing and the supervisor service gate", () => {
   assert.match(layout, /import AndroidPrintBridge from "\.\/portal\/AndroidPrintBridge"/);
+  assert.match(layout, /import SupervisorServiceGate from "\.\/portal\/SupervisorServiceGate"/);
   assert.match(layout, /<AndroidPrintBridge \/>/);
+  assert.match(layout, /<SupervisorServiceGate \/>/);
   assert.doesNotMatch(layout, /pos-print-bridge\.js/);
 });
 
 test("Android receipt taps are captured before React can enter browser PDF printing", () => {
-  assert.match(bridge, /if \(!\/Android\/i\.test\(navigator\.userAgent\)\) return/);
+  assert.match(bridge, /function isAndroidTablet\(\)/);
   assert.match(bridge, /document\.addEventListener\("click", onClick, true\)/);
   assert.match(bridge, /event\.preventDefault\(\)/);
   assert.match(bridge, /event\.stopImmediatePropagation\(\)/);
@@ -22,15 +25,23 @@ test("Android receipt taps are captured before React can enter browser PDF print
   assert.match(bridge, /directPrint\(modal\.classList\.contains\("print-tag"\)/);
 });
 
-test("direct bridge launches the installed Android app with structured receipt metadata", () => {
+test("direct bridge launches the installed Android app with safe receipt metadata", () => {
   assert.match(bridge, /params\.set\("mode", mode\)/);
   assert.match(bridge, /params\.set\("text", text\)/);
   assert.match(bridge, /params\.set\("order", meta\.order\)/);
   assert.match(bridge, /params\.set\("payment", meta\.payment\)/);
+  assert.match(bridge, /params\.set\("suppress_drawer", "1"\)/);
   assert.match(bridge, /intent:\/\/print\?/);
   assert.match(bridge, /package=\$\{packageName\}/);
   assert.match(bridge, /window\.location\.assign\(target\)/);
   assert.doesNotMatch(bridge, /params\.set\("drawer"/);
+});
+
+test("supervisor service management requires current password", () => {
+  assert.match(gate, /services & pricing/);
+  assert.match(gate, /signInWithPassword/);
+  assert.match(gate, /Incorrect password/);
+  assert.match(gate, /Supervisor verification/);
 });
 
 test("Android app exposes only the direct receipt intent and no PrintService", () => {
@@ -39,12 +50,15 @@ test("Android app exposes only the direct receipt intent and no PrintService", (
   assert.doesNotMatch(manifest, /BIND_PRINT_SERVICE/);
 });
 
-test("Android app sanitizes receipt text and protects repeat drawer pulses", () => {
+test("Android app sanitizes, styles and protects drawer pulses", () => {
   assert.match(mainActivity, /sanitizeReceipt/);
   assert.match(mainActivity, /Charsets\.US_ASCII/);
   assert.match(mainActivity, /MAX_INPUT_CHARS/);
+  assert.match(mainActivity, /suppressDrawer/);
   assert.match(mainActivity, /payment == "cash"/);
   assert.match(mainActivity, /!wasPrinted\(order\)/);
-  assert.match(mainActivity, /markPrinted\(printedOrder\)/);
+  assert.match(mainActivity, /writeStyledReceipt/);
+  assert.match(mainActivity, /double-height order code/);
+  assert.match(mainActivity, /Font A: boxier/);
   assert.doesNotMatch(mainActivity, /getQueryParameter\("drawer"\)/);
 });
