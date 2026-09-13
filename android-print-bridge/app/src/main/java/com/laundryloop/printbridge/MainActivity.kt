@@ -223,7 +223,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (printedOrder != null) markPrinted(printedOrder)
                 runOnUiThread {
-                    status.text = if (openDrawer) "Receipt printed; cash drawer opened." else "Receipt sent to printer."
+                    status.text = if (openDrawer) "Two receipts printed; cash drawer opened." else "Two receipts sent to printer."
                     if (finishWhenDone) finish()
                 }
             } catch (e: Exception) {
@@ -241,14 +241,18 @@ class MainActivity : AppCompatActivity() {
 
         if (text.isNotBlank()) {
             if (mode == "receipt") {
-                writeStyledReceipt(out, text, orderCode)
+                repeat(RECEIPT_COPIES) {
+                    writeStyledReceipt(out, text, orderCode)
+                    out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
+                    out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // cut each customer/staff copy
+                }
             } else {
                 out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center bag tag
                 out.write(text.toByteArray(Charsets.US_ASCII))
                 out.write(byteArrayOf(0x1B, 0x61, 0x00))
+                out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
+                out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
             }
-            out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
-            out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // partial cut
         }
         if (openDrawer) out.write(byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte()))
         return out.toByteArray()
@@ -256,7 +260,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun writeStyledReceipt(out: ByteArrayOutputStream, text: String, orderCode: String?) {
         val border = "+" + "-".repeat(RECEIPT_COLUMNS) + "+"
-        val lines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
+        val rawLines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
+        val lines = formatPoundItems(rawLines).map { line ->
+            if (line.equals("Laundry Loop", ignoreCase = true)) "THE LAUNDRY LOOP" else line
+        }
         val paymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
         val customerPhoneIndex = lines.indexOfFirst { PHONE_LINE.matches(it.trim()) }
         val itemStart = if (customerPhoneIndex >= 0) customerPhoneIndex + 1 else -1
@@ -270,8 +277,6 @@ class MainActivity : AppCompatActivity() {
             val isItemSection = itemStart >= 0 && itemEnd > itemStart && index in itemStart until itemEnd
 
             if (isOrderCode) {
-                // Do not pad or surround this enlarged line. Let the printer's own
-                // center command place the code so it cannot wrap against the rails.
                 out.write(byteArrayOf(0x1B, 0x61, 0x01))
                 out.write(byteArrayOf(0x1B, 0x45, 0x01)) // bold
                 out.write(byteArrayOf(0x1D, 0x21, 0x10)) // double-height, normal width
@@ -293,6 +298,32 @@ class MainActivity : AppCompatActivity() {
         out.write(byteArrayOf(0x1B, 0x61, 0x00))
     }
 
+    private fun formatPoundItems(lines: List<String>): List<String> {
+        val result = mutableListOf<String>()
+        var index = 0
+        while (index < lines.size) {
+            val current = lines[index]
+            val match = LB_ITEM_LINE.matchEntire(current.trim())
+            val price = lines.getOrNull(index + 1)?.trim().orEmpty()
+            if (match != null && price.startsWith("GYD ", ignoreCase = true)) {
+                val service = match.groupValues[1].trim()
+                val quantity = match.groupValues[2].trim()
+                result += service
+                result += "$quantity ${poundLabel(quantity)}   $price"
+                index += 2
+            } else {
+                result += current
+                index += 1
+            }
+        }
+        return result
+    }
+
+    private fun poundLabel(quantity: String): String {
+        val value = quantity.toDoubleOrNull()
+        return if (value == 1.0) "lb" else "lbs"
+    }
+
     private fun centerText(value: String, width: Int): String {
         val clipped = value.take(width)
         val left = ((width - clipped.length) / 2).coerceAtLeast(0)
@@ -307,10 +338,12 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val RECEIPT_COLUMNS = 44
+        private const val RECEIPT_COPIES = 2
         private const val MAX_INPUT_CHARS = 6000
         private const val MAX_TRACKED_PRINTED_ORDERS = 5000
         private const val CONNECT_TIMEOUT_MS = 3000L
         private const val WRITE_TIMEOUT_MS = 5000L
         private val PHONE_LINE = Regex("^[+0-9][0-9 ()-]{6,}$")
+        private val LB_ITEM_LINE = Regex("^(.+?)\\s+x\\s+([0-9]+(?:\\.[0-9]+)?)\\s+(?:lb|lbs)$", RegexOption.IGNORE_CASE)
     }
 }
