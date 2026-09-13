@@ -32,14 +32,15 @@ export default function AndroidPrintBridge() {
 
     function receiptMeta() {
       const receipt = document.querySelector<HTMLElement>("#printable-receipt");
-      if (!receipt) return { order: "", payment: "" };
+      if (!receipt) return { order: "", payment: "", status: "" };
 
       const order = receipt.querySelector("h2")?.textContent?.trim() ?? "";
-      const paymentLine = Array.from(receipt.querySelectorAll("p"))
-        .map((node) => node.textContent?.trim() ?? "")
-        .find((value) => value.toLowerCase().startsWith("payment:")) ?? "";
+      const lines = Array.from(receipt.querySelectorAll("p")).map((node) => node.textContent?.trim() ?? "");
+      const paymentLine = lines.find((value) => value.toLowerCase().startsWith("payment:")) ?? "";
+      const statusLine = lines.find((value) => value.toLowerCase().startsWith("status:")) ?? "";
       const payment = paymentLine.replace(/^payment:\s*/i, "").split("·")[0].trim();
-      return { order, payment };
+      const status = statusLine.replace(/^status:\s*/i, "").trim();
+      return { order, payment, status };
     }
 
     function directPrint(mode: "receipt" | "tag") {
@@ -57,6 +58,7 @@ export default function AndroidPrintBridge() {
         const meta = receiptMeta();
         if (meta.order) params.set("order", meta.order);
         if (meta.payment) params.set("payment", meta.payment);
+        if (/picked up|archived/i.test(meta.status)) params.set("suppress_drawer", "1");
       }
 
       const target = `intent://print?${params.toString()}#Intent;scheme=laundryloop-print;package=${packageName};end`;
