@@ -236,18 +236,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildPayload(text: String, openDrawer: Boolean, orderCode: String?, mode: String): ByteArray {
         val out = ByteArrayOutputStream()
-        out.write(byteArrayOf(0x1B, 0x40)) // initialize
-        out.write(byteArrayOf(0x1B, 0x4D, 0x00)) // Font A: boxier 48-column printer font
+        out.write(byteArrayOf(0x1B, 0x40))
+        out.write(byteArrayOf(0x1B, 0x4D, 0x00))
 
         if (text.isNotBlank()) {
             if (mode == "receipt") {
                 repeat(RECEIPT_COPIES) {
                     writeStyledReceipt(out, text, orderCode)
                     out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
-                    out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03)) // cut each customer/staff copy
+                    out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
                 }
             } else {
-                out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center bag tag
+                out.write(byteArrayOf(0x1B, 0x61, 0x01))
                 out.write(text.toByteArray(Charsets.US_ASCII))
                 out.write(byteArrayOf(0x1B, 0x61, 0x00))
                 out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
@@ -261,7 +261,10 @@ class MainActivity : AppCompatActivity() {
     private fun writeStyledReceipt(out: ByteArrayOutputStream, text: String, orderCode: String?) {
         val border = "+" + "-".repeat(RECEIPT_COLUMNS) + "+"
         val rawLines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
-        val lines = formatPoundItems(rawLines).map { line ->
+        val totalPounds = calculateTotalPounds(rawLines)
+        val formattedItems = formatPoundItems(rawLines)
+        val withWeight = if (totalPounds > 0.0) insertTotalWeight(formattedItems, totalPounds) else formattedItems
+        val lines = withWeight.map { line ->
             if (line.equals("Laundry Loop", ignoreCase = true)) "THE LAUNDRY LOOP" else line
         }
         val paymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
@@ -269,7 +272,7 @@ class MainActivity : AppCompatActivity() {
         val itemStart = if (customerPhoneIndex >= 0) customerPhoneIndex + 1 else -1
         val itemEnd = if (paymentIndex > itemStart) paymentIndex else -1
 
-        out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center receipt as the default alignment
+        out.write(byteArrayOf(0x1B, 0x61, 0x01))
         writeAsciiLine(out, border)
 
         lines.forEachIndexed { index, line ->
@@ -278,8 +281,8 @@ class MainActivity : AppCompatActivity() {
 
             if (isOrderCode) {
                 out.write(byteArrayOf(0x1B, 0x61, 0x01))
-                out.write(byteArrayOf(0x1B, 0x45, 0x01)) // bold
-                out.write(byteArrayOf(0x1D, 0x21, 0x10)) // double-height, normal width
+                out.write(byteArrayOf(0x1B, 0x45, 0x01))
+                out.write(byteArrayOf(0x1D, 0x21, 0x10))
                 writeAsciiLine(out, line)
                 out.write(byteArrayOf(0x1D, 0x21, 0x00))
                 out.write(byteArrayOf(0x1B, 0x45, 0x00))
@@ -296,6 +299,20 @@ class MainActivity : AppCompatActivity() {
 
         writeAsciiLine(out, border)
         out.write(byteArrayOf(0x1B, 0x61, 0x00))
+    }
+
+    private fun calculateTotalPounds(lines: List<String>): Double = lines.sumOf { line ->
+        val match = LB_ITEM_LINE.matchEntire(line.trim())
+        match?.groupValues?.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+    }
+
+    private fun insertTotalWeight(lines: List<String>, totalPounds: Double): List<String> {
+        val result = lines.toMutableList()
+        val insertAt = result.indexOfFirst {
+            it.equals("Discount", ignoreCase = true) || it.equals("Total", ignoreCase = true) || it.startsWith("Payment:", ignoreCase = true)
+        }.let { if (it >= 0) it else result.size }
+        result.add(insertAt, "Total weight: ${formatQuantity(totalPounds)} ${poundLabel(totalPounds.toString())}")
+        return result
     }
 
     private fun formatPoundItems(lines: List<String>): List<String> {
@@ -318,6 +335,8 @@ class MainActivity : AppCompatActivity() {
         }
         return result
     }
+
+    private fun formatQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else value.toString().trimEnd('0').trimEnd('.')
 
     private fun poundLabel(quantity: String): String {
         val value = quantity.toDoubleOrNull()
