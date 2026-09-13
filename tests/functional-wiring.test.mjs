@@ -11,6 +11,7 @@ const cmsMigration = await readFile(new URL("../supabase/migrations/202608230300
 const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
 const subscriptionMigration = await readFile(new URL("../supabase/migrations/20260830020000_subscription_accounts_and_loop_credits.sql", import.meta.url), "utf8");
 const operationsMigration = await readFile(new URL("../supabase/migrations/20260901010000_inventory_sessions_and_subscription_operations.sql", import.meta.url), "utf8");
+const managerServicesMigration = await readFile(new URL("../supabase/migrations/20260913151035_manager_service_management.sql", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
 test("every public payment panel referenced by the controller exists", () => {
@@ -87,6 +88,18 @@ test("staff and administrators can create new inventory items", () => {
   assert.match(operationsMigration, /auth\.uid\(\) is null or not public\.is_staff\(\)/);
   assert.match(operationsMigration, /'Opening stock'/);
   assert.match(operationsMigration, /grant execute on function public\.staff_create_inventory_item/);
+});
+
+test("managers and administrators can add and maintain services", () => {
+  assert.match(portal, /const canManageServices = profile\?\.role === "manager" \|\| isAdmin/);
+  assert.match(portal, /\["services", "Services & pricing", ""\]/);
+  assert.match(portal, /className="add-service-form" onSubmit=\{createService\}/);
+  assert.match(portal, /from\("service_catalog"\)\.insert/);
+  assert.match(portal, /view === "services" && canManageServices/);
+  assert.match(managerServicesMigration, /role in \('manager', 'admin'\)/);
+  assert.match(managerServicesMigration, /create policy "managers and admins insert services"/);
+  assert.match(managerServicesMigration, /create policy "managers and admins update services"/);
+  assert.doesNotMatch(managerServicesMigration, /drop policy if exists "admins delete services"/);
 });
 
 test("logout clears credentials and customer recovery invalidates old sessions", () => {

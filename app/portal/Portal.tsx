@@ -69,6 +69,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [completedSearch, setCompletedSearch] = useState("");
   const [completedBusy, setCompletedBusy] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
+  const [serviceForm, setServiceForm] = useState({ name: "", category: "", rate: "", unit: "lb", active: true });
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [team, setTeam] = useState<Profile[]>([]);
@@ -96,6 +97,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");
 
   const isAdmin = profile?.role === "admin";
+  const canManageServices = profile?.role === "manager" || isAdmin;
 
   const loadCompletedOrders = useCallback(async (rawSearch = "") => {
     const searchTerm = rawSearch.replace(/[^\p{L}\p{N}\s+-]/gu, "").trim().slice(0, 80);
@@ -351,7 +353,43 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }
 
   async function resolveAlert(id: string) { const { error } = await supabase.rpc("resolve_staff_security_alert", { p_alert_id: id }); if (error) setMessage(error.message); else await loadAdmin(); }
-  async function updateService(service: Service) { const { error } = await supabase.from("service_catalog").update({ name: service.name, category: service.category, rate: Number(service.rate), unit: service.unit, active: service.active }).eq("id", service.id); if (error) setMessage(error.message); else { await loadDashboard(); setMessage("Service pricing updated."); } }
+  async function createService(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setMessage("");
+    const name = serviceForm.name.trim();
+    const category = serviceForm.category.trim();
+    const unit = serviceForm.unit.trim();
+    const rate = Number(serviceForm.rate);
+    if (name.length < 2 || category.length < 2 || !unit) {
+      setMessage("Enter a service name, category and pricing unit."); setBusy(false); return;
+    }
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setMessage("Enter a service rate greater than zero."); setBusy(false); return;
+    }
+    const { error } = await supabase.from("service_catalog").insert({ name, category, rate, unit, active: serviceForm.active });
+    if (error) setMessage(`Service was not added: ${error.message}`);
+    else {
+      setServiceForm({ name: "", category, rate: "", unit, active: true });
+      await loadDashboard();
+      setMessage(`${name} was added to Services & pricing.`);
+    }
+    setBusy(false);
+  }
+
+  async function updateService(service: Service) {
+    const name = service.name.trim();
+    const category = service.category.trim();
+    const unit = service.unit.trim();
+    const rate = Number(service.rate);
+    if (name.length < 2 || category.length < 2 || !unit || !Number.isFinite(rate) || rate <= 0) {
+      setMessage("Each service needs a name, category, unit and rate greater than zero."); return;
+    }
+    setBusy(true); setMessage("");
+    const { error } = await supabase.from("service_catalog").update({ name, category, rate, unit, active: service.active }).eq("id", service.id);
+    if (error) setMessage(`Service was not updated: ${error.message}`);
+    else { await loadDashboard(); setMessage(`${name} was updated.`); }
+    setBusy(false);
+  }
   async function updateTeam(member: Profile) { const { error } = await supabase.from("staff_profiles").update({ display_name: member.display_name, role: member.role, active: member.active }).eq("user_id", member.user_id); if (error) setMessage(error.message); else { await loadAdmin(); setMessage("Team access updated."); } }
   async function updateSiteContent(event: FormEvent) {
     event.preventDefault();
@@ -460,7 +498,8 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   const navigation: Array<[View, string, string]> = [
     ["orders", "Orders", String(filteredOrders.length)], ["pos", "New POS order", "+"], ["paper", "Enter paper order", ""], ["inventory", "Inventory", ""], ["operations", "Operations", ""],
-    ...(isAdmin ? [["content", "Website content", ""], ["services", "Services & pricing", ""], ["team", "Staff", ""], ["security", "Recovery alerts", String(alerts.filter((a) => !a.resolved_at).length)]] as Array<[View, string, string]> : []),
+    ...(canManageServices ? [["services", "Services & pricing", ""]] as Array<[View, string, string]> : []),
+    ...(isAdmin ? [["content", "Website content", ""], ["team", "Staff", ""], ["security", "Recovery alerts", String(alerts.filter((a) => !a.resolved_at).length)]] as Array<[View, string, string]> : []),
   ];
 
   return <main className={`ops-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${menuOpen ? "menu-open" : ""}`}>
@@ -809,13 +848,27 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </form> : <div className="panel"><p>Loading website content…</p></div>}
 </section>}
 
-      {view === "services" && isAdmin && <section className="panel">
+      {view === "services" && canManageServices && <section className="panel">
 <div className="section-heading">
 <div>
-<p className="eyebrow">Administrator only</p>
+<p className="eyebrow">Manager &amp; administrator</p>
 <h2>Services & pricing</h2>
+<p className="muted">Add new services or update the catalog used by the website, estimator and POS.</p>
 </div>
 </div>
+<form className="add-service-form" onSubmit={createService}>
+<h3>Add a new service</h3>
+<div className="add-service-grid">
+<label>Service name<input value={serviceForm.name} onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })} placeholder="e.g. Suit dry cleaning" required /></label>
+<label>Category<input list="service-category-options" value={serviceForm.category} onChange={(e) => setServiceForm({ ...serviceForm, category: e.target.value })} placeholder="e.g. Dry Cleaning" required /></label>
+<label>Rate (GYD)<input type="number" min="0.01" step="0.01" value={serviceForm.rate} onChange={(e) => setServiceForm({ ...serviceForm, rate: e.target.value })} placeholder="0" required /></label>
+<label>Pricing unit<input list="service-unit-options" value={serviceForm.unit} onChange={(e) => setServiceForm({ ...serviceForm, unit: e.target.value })} placeholder="lb, item or panel" required /></label>
+<label className="toggle"><input type="checkbox" checked={serviceForm.active} onChange={(e) => setServiceForm({ ...serviceForm, active: e.target.checked })}/> Active immediately</label>
+<button type="submit" disabled={busy}>Add service</button>
+</div>
+<datalist id="service-category-options">{Array.from(new Set(services.map((service) => service.category))).map((category) => <option key={category} value={category}/>)}</datalist>
+<datalist id="service-unit-options">{Array.from(new Set(["lb", "item", "panel", ...services.map((service) => service.unit)])).map((unit) => <option key={unit} value={unit}/>)}</datalist>
+</form>
 <div className="admin-list">{services.map((service, index) => <div className="admin-row" key={service.id}>
 <input aria-label="Service name" value={service.name} onChange={(e) => setServices(services.map((s, i) => i === index ? { ...s, name: e.target.value } : s))}/>
 <input aria-label="Category" value={service.category} onChange={(e) => setServices(services.map((s, i) => i === index ? { ...s, category: e.target.value } : s))}/>
@@ -823,7 +876,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <input aria-label="Unit" value={service.unit} onChange={(e) => setServices(services.map((s, i) => i === index ? { ...s, unit: e.target.value } : s))}/>
 <label className="toggle">
 <input type="checkbox" checked={service.active} onChange={(e) => setServices(services.map((s, i) => i === index ? { ...s, active: e.target.checked } : s))}/> Active</label>
-<button onClick={() => void updateService(service)}>Save</button>
+<button type="button" disabled={busy} onClick={() => void updateService(service)}>Save</button>
 </div>)}</div>
 </section>}
 

@@ -173,6 +173,8 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .admin-list{display:grid;gap:10px;margin-top:18px}
 .admin-row{display:grid;grid-template-columns:1.4fr 1.2fr 120px 100px 95px 75px;gap:8px;align-items:center;padding:10px;background:#f7f8f6;border:1px solid var(--line)}
 .admin-row input,.admin-row select{padding:8px}
+.add-service-form{margin-top:18px;padding:18px;border:1px solid #cdd8d2;border-radius:7px;background:#f7faf8}.add-service-form h3{margin:0 0 14px;font-family:Georgia,serif;color:var(--green)}
+.add-service-grid{display:grid;grid-template-columns:1.5fr 1.2fr 130px 130px auto auto;gap:10px;align-items:end}.add-service-grid label:not(.toggle){display:grid;gap:6px;font-size:.72rem;font-weight:800;color:var(--muted)}.add-service-grid .toggle{min-height:42px}.add-service-grid button{min-height:42px;white-space:nowrap}
 .toggle{display:flex;align-items:center;gap:6px}
 .toggle input{width:auto}
 .team-row{grid-template-columns:1fr 180px 100px 120px}
@@ -221,6 +223,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .subscription-row{grid-template-columns:1fr 1fr}.subscription-row button{grid-column:1/-1}
 .add-inventory-grid{grid-template-columns:1fr 1fr}
 .add-inventory-grid button{grid-column:1/-1}
+.add-service-grid{grid-template-columns:1fr 1fr}.add-service-grid .toggle,.add-service-grid button{grid-column:auto}
 }
 
 @media(max-width:680px){.ops-main{padding:19px 13px 50px}
@@ -231,6 +234,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .queue-summary{grid-template-columns:1fr 1fr}
 .form-grid,.movement-grid{grid-template-columns:1fr}
 .discount-grid,.discount-control,.add-inventory-grid{grid-template-columns:1fr}
+.add-service-grid{grid-template-columns:1fr}.add-service-grid .toggle,.add-service-grid button{grid-column:auto}
 .discount-control button,.add-inventory-grid button{grid-column:auto}
 .cms-form .wide-field{grid-column:auto}
 .service-row{grid-template-columns:minmax(0,1fr) 78px 40px}
