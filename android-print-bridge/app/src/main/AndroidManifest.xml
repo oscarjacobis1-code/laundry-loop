@@ -22,26 +22,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="laundryloop-print" android:host="print" />
             </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="laundryloop-print" android:host="configure" />
-            </intent-filter>
         </activity>
-
-        <service
-            android:name=".LaundryLoopPrintService"
-            android:label="Laundry Loop Printer"
-            android:permission="android.permission.BIND_PRINT_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.printservice.PrintService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.printservice"
-                android:resource="@xml/printservice" />
-        </service>
     </application>
 </manifest>
