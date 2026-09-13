@@ -5,6 +5,8 @@
     <application
         android:theme="@style/AppTheme"
         android:label="Laundry Loop Printer"
+        android:icon="@drawable/snapnest_launcher"
+        android:roundIcon="@drawable/snapnest_launcher"
         android:usesCleartextTraffic="true">
 
         <activity
