@@ -262,8 +262,7 @@ class MainActivity : AppCompatActivity() {
         val border = "+" + "-".repeat(RECEIPT_COLUMNS) + "+"
         val rawLines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
         val totalPounds = calculateTotalPounds(rawLines)
-        val formattedItems = formatPoundItems(rawLines)
-        val withWeight = if (totalPounds > 0.0) insertTotalWeight(formattedItems, totalPounds) else formattedItems
+        val withWeight = if (totalPounds > 0.0) insertTotalWeight(rawLines, totalPounds) else rawLines
         var lines = withWeight.map { line ->
             if (line.equals("Laundry Loop", ignoreCase = true)) "THE LAUNDRY LOOP" else line
         }
@@ -317,27 +316,6 @@ class MainActivity : AppCompatActivity() {
             it.equals("Discount", ignoreCase = true) || it.equals("Total", ignoreCase = true) || it.startsWith("Payment:", ignoreCase = true)
         }.let { if (it >= 0) it else result.size }
         result.add(insertAt, "Total weight: ${formatQuantity(totalPounds)} ${poundLabel(totalPounds.toString())}")
-        return result
-    }
-
-    private fun formatPoundItems(lines: List<String>): List<String> {
-        val result = mutableListOf<String>()
-        var index = 0
-        while (index < lines.size) {
-            val current = lines[index]
-            val match = LB_ITEM_LINE.matchEntire(current.trim())
-            val price = lines.getOrNull(index + 1)?.trim().orEmpty()
-            if (match != null && price.startsWith("GYD ", ignoreCase = true)) {
-                val service = match.groupValues[1].trim()
-                val quantity = match.groupValues[2].trim()
-                result += "$service - $quantity ${poundLabel(quantity)}"
-                result += price
-                index += 2
-            } else {
-                result += current
-                index += 1
-            }
-        }
         return result
     }
 
