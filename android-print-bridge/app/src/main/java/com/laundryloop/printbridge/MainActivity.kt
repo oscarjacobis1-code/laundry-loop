@@ -23,6 +23,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
     }
 
     private fun buildUi() {
@@ -42,7 +49,7 @@ class MainActivity : AppCompatActivity() {
 
         host = EditText(this).apply { hint = "Printer IP"; setText(prefs.getString("host", "192.168.1.87")) }
         port = EditText(this).apply { hint = "Port"; inputType = 2; setText(prefs.getInt("port", 9100).toString()) }
-        status = TextView(this).apply { text = "Configure the printer, test it, then enable Laundry Loop Printer in Android printing settings." }
+        status = TextView(this).apply { text = "Ready for direct Laundry Loop receipt printing." }
 
         val save = Button(this).apply {
             text = "Save printer"
@@ -52,15 +59,15 @@ class MainActivity : AppCompatActivity() {
             text = "Test print"
             setOnClickListener {
                 savePrinter()
-                sendPrint("THE LAUNDRY LOOP\nPrinter connection test\nFresh. Folded. Done.\n\n", false)
+                sendPrint("THE LAUNDRY LOOP\nPrinter connection test\nFresh. Folded. Done.\n\n", false, false)
             }
         }
         val drawer = Button(this).apply {
             text = "Test cash drawer"
-            setOnClickListener { savePrinter(); sendPrint("", true) }
+            setOnClickListener { savePrinter(); sendPrint("", true, false) }
         }
         val enableService = Button(this).apply {
-            text = "Enable Laundry Loop Print Service"
+            text = "Enable Laundry Loop Print Service (fallback)"
             setOnClickListener {
                 savePrinter()
                 startActivity(Intent(Settings.ACTION_PRINT_SETTINGS))
@@ -85,19 +92,40 @@ class MainActivity : AppCompatActivity() {
             .apply()
     }
 
-    private fun sendPrint(text: String, openDrawer: Boolean) {
+    private fun handleIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "laundryloop-print") return
+
+        when (uri.host) {
+            "configure" -> status.text = "Printer bridge opened from Laundry Loop."
+            "print" -> {
+                val text = uri.getQueryParameter("text").orEmpty()
+                val openDrawer = uri.getQueryParameter("drawer") == "1"
+                if (text.isBlank()) {
+                    status.text = "Receipt request was empty."
+                    return
+                }
+                status.text = "Receipt received. Sending directly to Rongta…"
+                sendPrint(text, openDrawer, true)
+            }
+        }
+    }
+
+    private fun sendPrint(text: String, openDrawer: Boolean, finishWhenDone: Boolean) {
         val printerHost = prefs.getString("host", "192.168.1.87")?.trim().orEmpty()
         val printerPort = prefs.getInt("port", 9100)
         if (printerHost.isBlank()) {
             status.text = "Set the printer IP first."
             return
         }
+
         status.text = "Sending to $printerHost:$printerPort…"
         thread {
             try {
                 Socket().use { socket ->
                     socket.connect(InetSocketAddress(printerHost, printerPort), 3000)
                     socket.soTimeout = 3000
+                    socket.tcpNoDelay = true
                     val out = ByteArrayOutputStream()
                     out.write(byteArrayOf(0x1B, 0x40))
                     if (text.isNotBlank()) {
@@ -105,17 +133,23 @@ class MainActivity : AppCompatActivity() {
                         out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
                         out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
                     }
-                    if (openDrawer) out.write(byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte()))
+                    if (openDrawer) {
+                        out.write(byteArrayOf(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte()))
+                    }
                     socket.getOutputStream().use { stream ->
                         stream.write(out.toByteArray())
                         stream.flush()
                     }
                 }
                 runOnUiThread {
-                    status.text = if (openDrawer) "Drawer command sent." else "Test receipt sent to printer."
+                    status.text = if (openDrawer) "Receipt printed and drawer command sent." else "Receipt sent to printer."
+                    if (finishWhenDone) finish()
                 }
             } catch (e: Exception) {
-                runOnUiThread { status.text = "Printer error: ${e.message ?: "connection failed"}" }
+                runOnUiThread {
+                    status.text = "Printer error: ${e.message ?: "connection failed"}"
+                    if (finishWhenDone) finish()
+                }
             }
         }
     }
