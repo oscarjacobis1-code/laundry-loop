@@ -207,7 +207,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .ops-sidebar{position:fixed;z-index:90;left:-270px;width:250px;transition:left .2s}
 .ops-sidebar.open{left:0;box-shadow:20px 0 60px rgba(0,0,0,.25)}
 .ops-shell.sidebar-collapsed .ops-sidebar{padding:24px 17px}.ops-shell.sidebar-collapsed .ops-brand{justify-content:flex-start;padding:0 7px 28px}.ops-shell.sidebar-collapsed .ops-brand div,.ops-shell.sidebar-collapsed .nav-label,.ops-shell.sidebar-collapsed .sidebar-user strong,.ops-shell.sidebar-collapsed .sidebar-user small,.ops-shell.sidebar-collapsed .signout-label{display:grid}.ops-shell.sidebar-collapsed .nav-short,.ops-shell.sidebar-collapsed .signout-short{display:none}.ops-shell.sidebar-collapsed .ops-sidebar nav button{justify-content:space-between;padding:11px 15px;font-size:inherit}.ops-shell.sidebar-collapsed .ops-sidebar nav b{position:static;min-width:24px;padding:2px 6px;font-size:.72rem}.ops-shell.sidebar-collapsed .sidebar-user{padding:18px 8px 0}.ops-shell.sidebar-collapsed .sidebar-user button{padding:11px 15px;font-size:inherit}
-.sidebar-toggle{top:28px;right:-18px}.sidebar-toggle span{transform:rotate(180deg)}
+.sidebar-toggle{top:28px;right:-18px}
 .sidebar-scrim{position:fixed;z-index:80;inset:0;display:block;padding:0;border-radius:0;background:rgba(4,13,42,.46);backdrop-filter:blur(2px)}
 .menu-button{display:block}
 .split-layout{grid-template-columns:1fr}

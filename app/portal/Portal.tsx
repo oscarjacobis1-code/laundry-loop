@@ -486,7 +486,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     </aside>
     <section className="ops-main">
       <header className="ops-topbar">
-<button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? "Close dashboard menu" : "Open dashboard menu"}>☰</button>
+<button className="menu-button" onClick={() => { setSidebarCollapsed(false); setMenuOpen(!menuOpen); }} aria-label={menuOpen ? "Close dashboard menu" : "Open dashboard menu"}>☰</button>
 <div>
 <p className="eyebrow">Laundry operations</p>
 <h1>{navigation.find(([key]) => key === view)?.[1]}</h1>
