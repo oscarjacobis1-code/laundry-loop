@@ -55,7 +55,12 @@ class LaundryLoopPrintService : PrintService() {
 
     private fun buildPrinter(): PrinterInfo {
         val printerId = generatePrinterId(PRINTER_LOCAL_ID)
-        val media = PrintAttributes.MediaSize("ROLL_80MM", "80 mm receipt roll", 3150, 20000)
+        val media = PrintAttributes.MediaSize(
+            "ROLL_80MM_160MM",
+            "80 mm receipt roll",
+            3150,
+            6300
+        )
         val resolution = PrintAttributes.Resolution("203DPI", "203 dpi", 203, 203)
         val capabilities = PrinterCapabilitiesInfo.Builder(printerId)
             .addMediaSize(media, true)
