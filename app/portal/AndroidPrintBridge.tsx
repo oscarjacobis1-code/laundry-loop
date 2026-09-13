@@ -3,15 +3,24 @@
 import { useEffect } from "react";
 
 declare global {
+  interface Navigator {
+    userAgentData?: { platform?: string; mobile?: boolean };
+  }
   interface Window {
     __LAUNDRY_DIRECT_PRINT_READY__?: boolean;
     __LAUNDRY_DIRECT_PRINT__?: (mode: "receipt" | "tag") => boolean;
   }
 }
 
+function isAndroidTablet() {
+  const ua = navigator.userAgent || "";
+  const platform = navigator.userAgentData?.platform || navigator.platform || "";
+  return /Android/i.test(ua) || /Android/i.test(platform);
+}
+
 export default function AndroidPrintBridge() {
   useEffect(() => {
-    if (!/Android/i.test(navigator.userAgent)) return;
+    if (!isAndroidTablet()) return;
 
     const packageName = "com.laundryloop.printbridge";
     const originalPrint = window.print.bind(window);
@@ -77,7 +86,10 @@ export default function AndroidPrintBridge() {
 
     window.print = () => {
       const modal = document.querySelector(".receipt-modal");
-      if (!modal) return originalPrint();
+      if (!modal) {
+        window.alert("Laundry Loop direct printing is active, but no receipt is open.");
+        return;
+      }
       directPrint(modal.classList.contains("print-tag") ? "tag" : "receipt");
     };
 
