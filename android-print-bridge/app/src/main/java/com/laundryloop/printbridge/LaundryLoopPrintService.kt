@@ -13,6 +13,7 @@ import android.printservice.PrinterDiscoverySession
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.concurrent.thread
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -23,7 +24,6 @@ class LaundryLoopPrintService : PrintService() {
         override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
             addPrinters(listOf(buildPrinter()))
         }
-
         override fun onStopPrinterDiscovery() = Unit
         override fun onValidatePrinters(printerIds: MutableList<PrinterId>) {
             addPrinters(listOf(buildPrinter()))
@@ -90,11 +90,16 @@ class LaundryLoopPrintService : PrintService() {
                         bitmap.eraseColor(Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
 
+                        val firstDarkRow = findFirstNonWhiteRow(bitmap)
                         val lastDarkRow = findLastNonWhiteRow(bitmap)
-                        if (lastDarkRow >= 0) {
-                            var top = 0
-                            while (top <= lastDarkRow) {
-                                val bandHeight = min(BAND_HEIGHT_ROWS, lastDarkRow - top + 1)
+
+                        if (firstDarkRow >= 0 && lastDarkRow >= firstDarkRow) {
+                            val startRow = max(0, firstDarkRow - CONTENT_PADDING_ROWS)
+                            val endRow = min(bitmap.height - 1, lastDarkRow + CONTENT_PADDING_ROWS)
+
+                            var top = startRow
+                            while (top <= endRow) {
+                                val bandHeight = min(BAND_HEIGHT_ROWS, endRow - top + 1)
                                 val band = Bitmap.createBitmap(bitmap, 0, top, PRINT_WIDTH_DOTS, bandHeight)
                                 val bytes = bitmapBandToEscPos(band)
                                 band.recycle()
@@ -117,18 +122,30 @@ class LaundryLoopPrintService : PrintService() {
         }
     }
 
-    private fun findLastNonWhiteRow(bitmap: Bitmap): Int {
-        for (y in bitmap.height - 1 downTo 0) {
-            var x = 0
-            while (x < bitmap.width) {
-                val pixel = bitmap.getPixel(x, y)
-                val alpha = Color.alpha(pixel)
-                val gray = (Color.red(pixel) * 30 + Color.green(pixel) * 59 + Color.blue(pixel) * 11) / 100
-                if (alpha > 32 && gray < 245) return y
-                x += 4
-            }
+    private fun findFirstNonWhiteRow(bitmap: Bitmap): Int {
+        for (y in 0 until bitmap.height) {
+            if (rowHasInk(bitmap, y)) return y
         }
         return -1
+    }
+
+    private fun findLastNonWhiteRow(bitmap: Bitmap): Int {
+        for (y in bitmap.height - 1 downTo 0) {
+            if (rowHasInk(bitmap, y)) return y
+        }
+        return -1
+    }
+
+    private fun rowHasInk(bitmap: Bitmap, y: Int): Boolean {
+        var x = 0
+        while (x < bitmap.width) {
+            val pixel = bitmap.getPixel(x, y)
+            val alpha = Color.alpha(pixel)
+            val gray = (Color.red(pixel) * 30 + Color.green(pixel) * 59 + Color.blue(pixel) * 11) / 100
+            if (alpha > 32 && gray < 245) return true
+            x += 4
+        }
+        return false
     }
 
     private fun bitmapBandToEscPos(bitmap: Bitmap): ByteArray {
@@ -170,7 +187,8 @@ class LaundryLoopPrintService : PrintService() {
         private const val PRINTER_LOCAL_ID = "rongta-80mm"
         private const val PRINT_WIDTH_DOTS = 576
         private const val BAND_HEIGHT_ROWS = 96
-        private const val BAND_PAUSE_MS = 35L
+        private const val BAND_PAUSE_MS = 25L
+        private const val CONTENT_PADDING_ROWS = 24
         private const val CONNECT_TIMEOUT_MS = 3000
         private const val READ_TIMEOUT_MS = 3000
     }
