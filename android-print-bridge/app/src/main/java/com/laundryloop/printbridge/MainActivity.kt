@@ -182,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         existing += order
         // Keep this bounded on the dedicated tablet. Old order codes only matter
         // for preventing accidental repeat drawer pulses, not accounting history.
-        val bounded = existing.takeLast(MAX_TRACKED_PRINTED_ORDERS).toSet()
+        val bounded = existing.toList().takeLast(MAX_TRACKED_PRINTED_ORDERS).toSet()
         prefs.edit().putStringSet("printed_orders", bounded).apply()
     }
 
