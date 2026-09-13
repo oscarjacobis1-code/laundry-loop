@@ -36,31 +36,58 @@ body {
   body {
     width: 80mm !important;
     min-width: 80mm !important;
-    height: auto !important;
-    min-height: 0 !important;
+    height: 160mm !important;
+    min-height: 160mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
+    overflow: hidden !important;
   }
 
-  .modal-overlay,
-  .receipt-modal {
+  /* The portal's old print rule uses visibility:hidden, which still leaves the
+     whole dashboard in the print layout and creates blank pages. Remove every
+     dashboard sibling from layout and keep only the open receipt modal. */
+  body:has(.receipt-modal.print-receipt) main > *:not(.modal-overlay) {
+    display: none !important;
+  }
+
+  body:has(.receipt-modal.print-receipt) .modal-overlay {
     position: static !important;
     inset: auto !important;
+    display: block !important;
     width: 80mm !important;
     max-width: 80mm !important;
-    min-height: 0 !important;
-    height: auto !important;
+    height: 160mm !important;
+    min-height: 160mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.receipt-modal.print-receipt) .receipt-modal {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: 160mm !important;
+    min-height: 160mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
     box-shadow: none !important;
-    overflow: visible !important;
+    overflow: hidden !important;
   }
 
-  .print-receipt #printable-receipt {
+  body:has(.receipt-modal.print-receipt) .receipt-modal > *:not(#printable-receipt) {
+    display: none !important;
+  }
+
+  body:has(.receipt-modal.print-receipt) #printable-receipt {
     position: static !important;
     display: block !important;
+    visibility: visible !important;
     width: 80mm !important;
     max-width: 80mm !important;
     height: auto !important;
@@ -68,13 +95,32 @@ body {
     margin: 0 !important;
     padding: 4mm !important;
     overflow: visible !important;
-    break-inside: auto !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body:has(.receipt-modal.print-receipt) #printable-receipt * {
+    visibility: visible !important;
+  }
+
+  body:has(.receipt-modal.print-tag) main > *:not(.modal-overlay) {
+    display: none !important;
+  }
+
+  body:has(.receipt-modal.print-tag) .receipt-modal > *:not(#printable-bag-tag) {
+    display: none !important;
   }
 
   .print-tag #printable-bag-tag {
     position: static !important;
+    display: block !important;
+    visibility: visible !important;
     width: 72mm !important;
     height: auto !important;
     margin: 0 !important;
+  }
+
+  .print-tag #printable-bag-tag * {
+    visibility: visible !important;
   }
 }
