@@ -264,20 +264,25 @@ class MainActivity : AppCompatActivity() {
         val totalPounds = calculateTotalPounds(rawLines)
         val formattedItems = formatPoundItems(rawLines)
         val withWeight = if (totalPounds > 0.0) insertTotalWeight(formattedItems, totalPounds) else formattedItems
-        val lines = withWeight.map { line ->
+        var lines = withWeight.map { line ->
             if (line.equals("Laundry Loop", ignoreCase = true)) "THE LAUNDRY LOOP" else line
         }
-        val paymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
+        val initialPaymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
         val customerPhoneIndex = lines.indexOfFirst { PHONE_LINE.matches(it.trim()) }
         val itemStart = if (customerPhoneIndex >= 0) customerPhoneIndex + 1 else -1
-        val itemEnd = if (paymentIndex > itemStart) paymentIndex else -1
+        val itemEnd = if (initialPaymentIndex > itemStart) initialPaymentIndex else -1
+        if (itemStart >= 0 && itemEnd > itemStart) {
+            lines = formatItemColumns(lines, itemStart, itemEnd)
+        }
+        val paymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
+        val finalItemEnd = if (paymentIndex > itemStart) paymentIndex else -1
 
         out.write(byteArrayOf(0x1B, 0x61, 0x01))
         writeAsciiLine(out, border)
 
         lines.forEachIndexed { index, line ->
             val isOrderCode = orderCode != null && line.equals(orderCode, ignoreCase = true)
-            val isItemSection = itemStart >= 0 && itemEnd > itemStart && index in itemStart until itemEnd
+            val isItemSection = itemStart >= 0 && finalItemEnd > itemStart && index in itemStart until finalItemEnd
 
             if (isOrderCode) {
                 out.write(byteArrayOf(0x1B, 0x61, 0x01))
@@ -325,8 +330,8 @@ class MainActivity : AppCompatActivity() {
             if (match != null && price.startsWith("GYD ", ignoreCase = true)) {
                 val service = match.groupValues[1].trim()
                 val quantity = match.groupValues[2].trim()
-                result += service
-                result += "$quantity ${poundLabel(quantity)}   $price"
+                result += "$service - $quantity ${poundLabel(quantity)}"
+                result += price
                 index += 2
             } else {
                 result += current
@@ -334,6 +339,36 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return result
+    }
+
+    private fun formatItemColumns(lines: List<String>, start: Int, end: Int): List<String> {
+        val prefix = lines.take(start)
+        val section = lines.subList(start, end)
+        val suffix = lines.drop(end)
+        val formatted = mutableListOf<String>()
+        var index = 0
+
+        while (index < section.size) {
+            val current = section[index].trim()
+            val next = section.getOrNull(index + 1)?.trim().orEmpty()
+            if (current.isNotBlank() && MONEY_LINE.matches(next)) {
+                formatted += twoColumn(current, next)
+                index += 2
+            } else {
+                formatted += current
+                index += 1
+            }
+        }
+
+        return prefix + formatted + suffix
+    }
+
+    private fun twoColumn(leftValue: String, rightValue: String): String {
+        val right = rightValue.take(16)
+        val maxLeft = (RECEIPT_COLUMNS - right.length - 1).coerceAtLeast(1)
+        val left = leftValue.take(maxLeft)
+        val spaces = (RECEIPT_COLUMNS - left.length - right.length).coerceAtLeast(1)
+        return left + " ".repeat(spaces) + right
     }
 
     private fun formatQuantity(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else value.toString().trimEnd('0').trimEnd('.')
@@ -364,5 +399,6 @@ class MainActivity : AppCompatActivity() {
         private const val WRITE_TIMEOUT_MS = 5000L
         private val PHONE_LINE = Regex("^[+0-9][0-9 ()-]{6,}$")
         private val LB_ITEM_LINE = Regex("^(.+?)\\s+x\\s+([0-9]+(?:\\.[0-9]+)?)\\s+(?:lb|lbs)$", RegexOption.IGNORE_CASE)
+        private val MONEY_LINE = Regex("^-?\\s*GYD\\s+.+$", RegexOption.IGNORE_CASE)
     }
 }
