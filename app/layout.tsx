@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
-        <Script src="/pos-print-bridge.js" strategy="afterInteractive" />
+        <Script src="/pos-print-bridge.js?v=20260913-1" strategy="afterInteractive" />
       </body>
     </html>
   );
