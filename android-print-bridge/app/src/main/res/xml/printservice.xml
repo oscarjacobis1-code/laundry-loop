@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <print-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:vendorId="LaundryLoop"
     android:settingsActivity="com.laundryloop.printbridge.MainActivity"
     android:addPrintersActivity="com.laundryloop.printbridge.MainActivity" />
