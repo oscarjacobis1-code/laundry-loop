@@ -257,24 +257,36 @@ class MainActivity : AppCompatActivity() {
     private fun writeStyledReceipt(out: ByteArrayOutputStream, text: String, orderCode: String?) {
         val border = "+" + "-".repeat(RECEIPT_COLUMNS) + "+"
         val lines = text.lines().flatMap { wrapLine(it.trim(), RECEIPT_COLUMNS) }
+        val paymentIndex = lines.indexOfFirst { it.startsWith("Payment:", ignoreCase = true) }
+        val customerPhoneIndex = lines.indexOfFirst { PHONE_LINE.matches(it.trim()) }
+        val itemStart = if (customerPhoneIndex >= 0) customerPhoneIndex + 1 else -1
+        val itemEnd = if (paymentIndex > itemStart) paymentIndex else -1
 
-        out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center entire receipt on 80 mm paper
+        out.write(byteArrayOf(0x1B, 0x61, 0x01)) // center receipt as the default alignment
         writeAsciiLine(out, border)
 
-        for (line in lines) {
+        lines.forEachIndexed { index, line ->
             val isOrderCode = orderCode != null && line.equals(orderCode, ignoreCase = true)
+            val isItemSection = itemStart >= 0 && itemEnd > itemStart && index in itemStart until itemEnd
+
             if (isOrderCode) {
+                // Do not pad or surround this enlarged line. Let the printer's own
+                // center command place the code so it cannot wrap against the rails.
+                out.write(byteArrayOf(0x1B, 0x61, 0x01))
                 out.write(byteArrayOf(0x1B, 0x45, 0x01)) // bold
-                out.write(byteArrayOf(0x1D, 0x21, 0x10)) // double-height order code, normal width
-            }
-
-            val centered = centerText(line, RECEIPT_COLUMNS)
-            writeAsciiLine(out, "|$centered|")
-
-            if (isOrderCode) {
+                out.write(byteArrayOf(0x1D, 0x21, 0x10)) // double-height, normal width
+                writeAsciiLine(out, line)
                 out.write(byteArrayOf(0x1D, 0x21, 0x00))
                 out.write(byteArrayOf(0x1B, 0x45, 0x00))
+                return@forEachIndexed
             }
+
+            val content = if (isItemSection && line.isNotBlank()) {
+                line.take(RECEIPT_COLUMNS).padEnd(RECEIPT_COLUMNS)
+            } else {
+                centerText(line, RECEIPT_COLUMNS)
+            }
+            writeAsciiLine(out, "|$content|")
         }
 
         writeAsciiLine(out, border)
@@ -299,5 +311,6 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_TRACKED_PRINTED_ORDERS = 5000
         private const val CONNECT_TIMEOUT_MS = 3000L
         private const val WRITE_TIMEOUT_MS = 5000L
+        private val PHONE_LINE = Regex("^[+0-9][0-9 ()-]{6,}$")
     }
 }
