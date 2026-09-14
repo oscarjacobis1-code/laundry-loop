@@ -21,7 +21,8 @@ test("Android receipt taps are captured before React can enter browser PDF print
 });
 
 test("direct bridge launches the installed Android app with safe receipt metadata", () => {
-  assert.match(bridge, /package=com\.laundryloop\.printbridge/);
+  assert.match(bridge, /const packageName = "com\.laundryloop\.printbridge"/);
+  assert.match(bridge, /package=\$\{packageName\}/);
   assert.match(bridge, /params\.set\("order", meta\.order\)/);
   assert.match(bridge, /params\.set\("payment", meta\.payment\)/);
   assert.match(bridge, /suppress_drawer/);
@@ -30,7 +31,8 @@ test("direct bridge launches the installed Android app with safe receipt metadat
 test("supervisor service management requires current password", () => {
   assert.match(supervisorGate, /Services & pricing/);
   assert.match(supervisorGate, /signInWithPassword/);
-  assert.match(supervisorGate, /Supervisor password/);
+  assert.match(supervisorGate, /Supervisor verification/);
+  assert.match(supervisorGate, /current Laundry Loop password/);
   assert.match(supervisorGate, /stopImmediatePropagation/);
 });
 
