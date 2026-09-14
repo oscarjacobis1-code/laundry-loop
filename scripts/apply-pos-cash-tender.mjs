@@ -88,6 +88,12 @@ replaceOnce(
 );
 
 replaceOnce(
+  '      const saved = data as Order; setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);',
+  '      const saved = data as Order;\n      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;\n      setSelectedOrder(receiptOrder); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);',
+  'saved cash receipt data',
+);
+
+replaceOnce(
   '    setBusy(false);\n  }\n\n  async function submitPaper',
   '    setBusy(false);\n    posSubmitLock.current = false;\n  }\n\n  async function submitPaper',
   'submit POS end',
