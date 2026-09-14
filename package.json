@@ -6,11 +6,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "prepare:pos": "node scripts/apply-pos-cash-tender.mjs",
+    "dev": "npm run prepare:pos && next dev",
     "build:public-css": "node scripts/build-public-css.mjs",
-    "build": "npm run build:public-css && next build",
+    "build": "npm run prepare:pos && npm run build:public-css && next build",
     "start": "next start",
-    "test": "node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs",
+    "test": "npm run prepare:pos && node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs",
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {
