@@ -6,7 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "prepare:pos": "node scripts/apply-pos-cash-tender.mjs",
+    "prepare:pos": "node scripts/apply-pos-cash-tender.mjs && node scripts/persist-cash-tender.mjs",
     "dev": "npm run prepare:pos && next dev",
     "build:public-css": "node scripts/build-public-css.mjs",
     "build": "npm run prepare:pos && npm run build:public-css && next build",
