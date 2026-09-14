@@ -4,20 +4,24 @@
 
     <application
         android:theme="@style/AppTheme"
-        android:label="Laundry Loop Printer"
+        android:label="SnapNest Client"
         android:icon="@drawable/snapnest_launcher"
         android:roundIcon="@drawable/snapnest_launcher"
         android:usesCleartextTraffic="true">
 
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
+            android:name=".SnapNestClientActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
