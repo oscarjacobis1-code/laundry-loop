@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AndroidPrintBridge from "./portal/AndroidPrintBridge";
 import SupervisorServiceGate from "./portal/SupervisorServiceGate";
+import PosMinimumWeightGuard from "./portal/PosMinimumWeightGuard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body className="antialiased">
         <AndroidPrintBridge />
         <SupervisorServiceGate />
+        <PosMinimumWeightGuard />
         {children}
       </body>
     </html>
