@@ -33,7 +33,8 @@
   const cleanPayment = (payment = {}) => ({
     method: payment.method || 'Cash',
     status: payment.status || 'Pay at Pickup',
-    reference: payment.reference || null
+    reference: payment.reference || null,
+    express: Boolean(payment.express)
   });
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   const mapOrder = (row) => ({
@@ -49,7 +50,9 @@
     type: row.order_type,
     date: row.scheduled_date || String(row.created_at || '').slice(0, 10),
     photo: row.scale_photo_url || row.scale_photo_path || null,
-    payment: row.payment || { method: 'Cash', status: 'Pay at Pickup' }
+    payment: row.payment || { method: 'Cash', status: 'Pay at Pickup' },
+    express: Boolean(row.express),
+    express_fee: Number(row.express_fee || 0)
   });
 
   async function rpc(name, values) {
@@ -475,7 +478,7 @@
         p_notes: PENDING_ORDER.notes,
         p_order_type: PENDING_ORDER.type,
         p_scheduled_date: PENDING_ORDER.date,
-        p_payment: cleanPayment(paymentInfo),
+        p_payment: cleanPayment({ ...paymentInfo, express: Boolean(PENDING_ORDER?.express) }),
         p_session_token: sessionStorage.getItem(SESSION_KEY),
         p_has_scale_photo: Boolean(compressedScalePhoto)
       });
