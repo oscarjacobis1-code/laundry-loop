@@ -135,5 +135,66 @@ replaceOnce(
   'receipt cash lines',
 );
 
+
+replaceOnce(
+  'type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; cashReceived: string; discountMode: DiscountMode; discountValue: string };',
+  'type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; cashReceived: string; express: boolean; discountMode: DiscountMode; discountValue: string };',
+  'Express POS state',
+);
+
+replaceOnce(
+  'const emptyPos: PosState = { name: "", phone: "", notes: "", paymentMethod: "Cash", paymentStatus: "Paid", paymentReference: "", cashReceived: "", discountMode: "amount", discountValue: "" };',
+  'const emptyPos: PosState = { name: "", phone: "", notes: "", paymentMethod: "Cash", paymentStatus: "Paid", paymentReference: "", cashReceived: "", express: false, discountMode: "amount", discountValue: "" };',
+  'Express empty POS state',
+);
+
+replaceOnce(
+  '  entry_source?: string; original_transaction_at?: string | null; paper_reference?: string | null;\n};',
+  '  express?: boolean; express_fee?: number; entry_source?: string; original_transaction_at?: string | null; paper_reference?: string | null;\n};',
+  'Express order fields',
+);
+
+replaceOnce(
+  'const orderColumns = "id,tracking_code,customer_name,customer_phone,items,weight_summary,subtotal,discount,total,status,notes,order_type,scheduled_date,scale_photo_path,payment,created_at,entry_source,original_transaction_at,paper_reference";',
+  'const orderColumns = "id,tracking_code,customer_name,customer_phone,items,weight_summary,subtotal,discount,total,status,notes,order_type,scheduled_date,scale_photo_path,payment,express,express_fee,created_at,entry_source,original_transaction_at,paper_reference";',
+  'Express order columns',
+);
+
+replaceOnce(
+  '  const posTotal = Math.max(0, posSubtotal - posDiscount);\n  const cashReceived = Math.max(0, Number(pos.cashReceived || 0));',
+  '  const expressFee = pos.express ? Math.round(posSubtotal * 0.50 * 100) / 100 : 0;\n  const posTotal = Math.max(0, posSubtotal + expressFee - posDiscount);\n  const cashReceived = Math.max(0, Number(pos.cashReceived || 0));',
+  'Express total calculation',
+);
+
+replaceOnce(
+  '      p_payment: { method: pos.paymentMethod, status: pos.paymentStatus, reference: pos.paymentReference.trim() || null, ...(pos.paymentMethod === "Cash" ? { cash_received: cashReceived, change_due: changeDue } : {}) },',
+  '      p_payment: { method: pos.paymentMethod, status: pos.paymentStatus, reference: pos.paymentReference.trim() || null, express: pos.express, ...(pos.paymentMethod === "Cash" ? { cash_received: cashReceived, change_due: changeDue } : {}) },',
+  'Express payment payload',
+);
+
+replaceOnce(
+  '<button type="button" className="secondary add-line" onClick={() => setPosItems([...posItems, { service_id: services.find((s) => s.active)?.id || "", qty: 1 }])}>+ Add another service</button>\n</div>\n<label>Garment / care notes<textarea value={pos.notes} onChange={(e) => setPos({ ...pos, notes: e.target.value })} placeholder="Item count, stains, special care…" rows={3}/>\n</label>',
+  '<button type="button" className="secondary add-line" onClick={() => setPosItems([...posItems, { service_id: services.find((s) => s.active)?.id || "", qty: 1 }])}>+ Add another service</button>\n</div>\n<label className="express-toggle"><span><input type="checkbox" checked={pos.express} onChange={(e) => setPos({ ...pos, express: e.target.checked })}/> Express service +50%</span><small>Same-day / 4–6 hour turnaround when available.</small></label>{pos.express && <div className="express-disclaimer">Laundry received before 12:00 PM → ready by 5:00–6:00 PM<br/>Orders received after 12 PM → ready next morning<br/>Express service is subject to machine availability.<br/>Heavy stains, special treatment and bulky items can attract additional charges.</div>}\n<label>Garment / care notes<textarea value={pos.notes} onChange={(e) => setPos({ ...pos, notes: e.target.value })} placeholder="Item count, stains, special care…" rows={3}/>\n</label>',
+  'Express POS control',
+);
+
+replaceOnce(
+  '<dl className="pos-total-breakdown"><div><dt>Subtotal</dt><dd>{money(posSubtotal)}</dd></div>{posDiscount > 0 && <div><dt>Discount</dt><dd>− {money(posDiscount)}</dd></div>}<div className="grand-total"><dt>Total</dt><dd>{money(posTotal)}</dd></div>{pos.paymentMethod === "Cash" && <><div><dt>Cash received</dt><dd>{money(cashReceived)}</dd></div><div><dt>Change due</dt><dd>{money(changeDue)}</dd></div></>}</dl>',
+  '<dl className="pos-total-breakdown"><div><dt>Subtotal</dt><dd>{money(posSubtotal)}</dd></div>{pos.express && <div><dt>Express +50%</dt><dd>{money(expressFee)}</dd></div>}{posDiscount > 0 && <div><dt>Discount</dt><dd>− {money(posDiscount)}</dd></div>}<div className="grand-total"><dt>Total</dt><dd>{money(posTotal)}</dd></div>{pos.paymentMethod === "Cash" && <><div><dt>Cash received</dt><dd>{money(cashReceived)}</dd></div><div><dt>Change due</dt><dd>{money(changeDue)}</dd></div></>}</dl>',
+  'Express POS summary',
+);
+
+replaceOnce(
+  '{selectedOrder.payment?.method === "Cash" && Number.isFinite(Number(selectedOrder.payment?.cash_received)) && <><div className="receipt-line"><span>Cash Received</span><strong>{money(selectedOrder.payment?.cash_received)}</strong></div><div className="receipt-line"><span>Change</span><strong>{money(selectedOrder.payment?.change_due)}</strong></div></>}\n<p>Payment: {selectedOrder.payment?.method} · {selectedOrder.payment?.status}</p>',
+  '{selectedOrder.payment?.method === "Cash" && Number.isFinite(Number(selectedOrder.payment?.cash_received)) && <><div className="receipt-line"><span>Cash Received</span><strong>{money(selectedOrder.payment?.cash_received)}</strong></div><div className="receipt-line"><span>Change</span><strong>{money(selectedOrder.payment?.change_due)}</strong></div></>}{selectedOrder.express && <><div className="receipt-line"><span>Express service +50%</span><strong>{money(selectedOrder.express_fee || 0)}</strong></div><p className="express-receipt-note">Laundry received before 12:00 PM → ready by 5:00–6:00 PM<br/>Orders received after 12 PM → ready next morning<br/>Express service is subject to machine availability.<br/>Heavy stains, special treatment and bulky items can attract additional charges.</p></>}\n<p>Payment: {selectedOrder.payment?.method} · {selectedOrder.payment?.status}</p>',
+  'Express receipt details',
+);
+
+replaceOnce(
+  '<strong>{order.weight_summary || \`${order.items?.length || 0} service(s)\`}</strong>\n<small>{order.notes || order.order_type}</small>',
+  '<strong>{order.weight_summary || \`${order.items?.length || 0} service(s)\`}</strong>{order.express && <span className="badge express-badge">Express</span>}\n<small>{order.notes || order.order_type}</small>',
+  'Express order badge',
+);
+
 fs.writeFileSync(path, source);
 console.log('Applied POS cash tender and change calculation patch.');
