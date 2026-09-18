@@ -422,6 +422,17 @@
                   <button type="button" onclick="addOrderItem('dropoff')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3">+ Add another service</button>
                 </div>
 
+                <label class="flex items-start gap-3 p-4" style="border:1px solid var(--line); border-radius:var(--radius); background:#F8FBFF;">
+                  <input id="dropoff-express" type="checkbox" onchange="updateOrderBuilder('dropoff')" style="width:auto; margin-top:3px;">
+                  <span><strong class="block text-[13px]">Express service +50%</strong><small class="block mt-1" style="color:var(--sub);">Same-day / 4–6 hour turnaround when available.</small></span>
+                </label>
+                <div id="dropoff-express-note" class="hidden p-3 text-[11px] leading-relaxed" style="background:#FFF8E8;border:1px solid #E8D8A8;color:#5F4B20;">
+                  Laundry received before 12:00 PM → ready by 5:00–6:00 PM<br>
+                  Orders received after 12 PM → ready next morning<br>
+                  Express service is subject to machine availability.<br>
+                  Heavy stains, special treatment and bulky items can attract additional charges.
+                </div>
+
                 <div>
                   <label class="field-label">Garment Description / Special Care</label>
                   <input type="text" id="dropoff-notes" placeholder="e.g. 12 shirts, 3 pants. Care with green dress." class="field">
@@ -564,6 +575,17 @@
             </div>
             <div id="online-items" class="space-y-2.5"></div>
             <button type="button" onclick="addOrderItem('online')" class="btn btn-outline text-[12px] px-4 py-2.5 mt-3">+ Add another service</button>
+          </div>
+
+          <label class="flex items-start gap-3 p-4" style="border:1px solid var(--line); border-radius:var(--radius); background:#F8FBFF;">
+            <input id="online-express" type="checkbox" onchange="updateOrderBuilder('online')" style="width:auto; margin-top:3px;">
+            <span><strong class="block text-[13px]">Express service +50%</strong><small class="block mt-1" style="color:var(--sub);">Same-day / 4–6 hour turnaround when available.</small></span>
+          </label>
+          <div id="online-express-note" class="hidden p-3 text-[11px] leading-relaxed" style="background:#FFF8E8;border:1px solid #E8D8A8;color:#5F4B20;">
+            Laundry received before 12:00 PM → ready by 5:00–6:00 PM<br>
+            Orders received after 12 PM → ready next morning<br>
+            Express service is subject to machine availability.<br>
+            Heavy stains, special treatment and bulky items can attract additional charges.
           </div>
 
           <div>
@@ -1386,10 +1408,12 @@
     e.preventDefault();
     const items=getOrderItems('dropoff');
     if(!items.length){ alert('Please add at least one laundry service.'); return; }
-    const total=items.reduce((sum,x)=>sum+x.total,0);
+    const baseTotal=items.reduce((sum,x)=>sum+x.total,0);
+    const express=Boolean(document.getElementById('dropoff-express')?.checked);
+    const total=express?baseTotal*1.5:baseTotal;
     PENDING_ORDER = {
       code: generateCode(), name: document.getElementById('dropoff-name').value.trim(),
-      phone: document.getElementById('dropoff-phone').value.trim(), items, total,
+      phone: document.getElementById('dropoff-phone').value.trim(), items, total, express,
       weight:items.map(x=>`${x.qty} ${x.unit}`).join(', '), rate:null,
       notes: document.getElementById('dropoff-notes').value.trim() || "Standard dropoff mix",
       type:"Self-Service Drop-Off", date:new Date().toISOString().split('T')[0], photo:dropoffPhotoBase64
@@ -1401,10 +1425,12 @@
     e.preventDefault();
     const items=getOrderItems('online');
     if(!items.length){ alert('Please add at least one laundry service.'); return; }
-    const total=items.reduce((sum,x)=>sum+x.total,0);
+    const baseTotal=items.reduce((sum,x)=>sum+x.total,0);
+    const express=Boolean(document.getElementById('online-express')?.checked);
+    const total=express?baseTotal*1.5:baseTotal;
     PENDING_ORDER = {
       code: generateCode(), name: document.getElementById('online-name').value.trim(),
-      phone: document.getElementById('online-phone').value.trim(), items, total,
+      phone: document.getElementById('online-phone').value.trim(), items, total, express,
       weight:items.map(x=>`${x.qty} ${x.unit}`).join(', '), rate:null,
       notes: document.getElementById('online-notes').value.trim() || "Scheduled Pickup",
       type:"Scheduled Pickup", date:document.getElementById('online-date').value || new Date().toISOString().split('T')[0],
@@ -1499,7 +1525,11 @@
 
   function updateOrderBuilder(type){
     const items=getOrderItems(type);
-    const total=items.reduce((sum,x)=>sum+x.total,0);
+    const baseTotal=items.reduce((sum,x)=>sum+x.total,0);
+    const express=Boolean(document.getElementById(type+'-express')?.checked);
+    const total=express?baseTotal*1.5:baseTotal;
+    const expressNote=document.getElementById(type+'-express-note');
+    if(expressNote) expressNote.classList.toggle('hidden',!express);
     if(type==='dropoff'){
       const labels=items.map(x=>`${x.label} × ${x.qty}`).join(', ')||'No services';
       const wt=items.map(x=>`${x.qty} ${x.unit}`).join(', ')||'0';
