@@ -119,6 +119,9 @@ function ensureStyles() {
     .ll-pos-fast-checkout{display:grid;gap:8px;margin-top:12px;padding:11px;background:#fff;border-radius:6px;color:#101827}
     .ll-pos-fast-checkout label{display:grid;gap:4px;color:#101827!important;font-size:.78rem;font-weight:800}
     .ll-pos-fast-checkout input{padding:9px 10px;background:#fff;color:#101827!important;border:1px solid #c8d1dc;border-radius:4px}
+    .ll-pos-cash-quick{display:flex;flex-wrap:wrap;gap:6px}
+    .ll-pos-cash-quick button{padding:7px 9px;border:1px solid #c8d1dc;border-radius:4px;background:#f7f9fc;color:#101827;font-size:.72rem;font-weight:800}
+    .ll-pos-cash-quick button:hover{background:#eef3f8}
     .ll-pos-fast-checkout .ll-change-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px;color:#101827}
     .ll-pos-fast-checkout .ll-change-row strong{color:#101827!important;font-size:1.05rem}
     .ll-pos-fast-checkout .ll-fast-submit{width:100%;margin-top:2px;background:#b8a17b;color:#101827}
@@ -184,6 +187,19 @@ function findChangeSource(form: HTMLFormElement) {
   return { holder: holder?.parentElement || holder || null, input: holder?.parentElement?.querySelector<HTMLInputElement>("input") || null };
 }
 
+function readTotalFromAside(aside: HTMLElement) {
+  const grand = aside.querySelector<HTMLElement>(".grand-total dd") || aside.querySelector<HTMLElement>(".grand-total");
+  const text = grand?.textContent || "";
+  const match = text.replace(/,/g, "").match(/([0-9]+(?:\.[0-9]+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function quickCashAmounts(total: number) {
+  if (!Number.isFinite(total) || total <= 0) return [];
+  const first = Math.ceil(total / 5000) * 5000;
+  return [first, first + 5000, first + 10000, first + 15000];
+}
+
 function ensureFastCheckout(form: HTMLFormElement, aside: HTMLElement) {
   const originalSubmit = form.querySelector<HTMLButtonElement>('button[type="submit"].primary-wide');
   if (originalSubmit) originalSubmit.classList.add("ll-original-submit");
@@ -233,8 +249,52 @@ function ensureFastCheckout(form: HTMLFormElement, aside: HTMLElement) {
     }
     if (proxy.value !== tender.input.value) proxy.value = tender.input.value;
     tender.label?.classList.add("ll-pos-original-tender");
+
+    let quick = box.querySelector<HTMLDivElement>('[data-role="cash-quick"]');
+    if (!quick) {
+      quick = document.createElement("div");
+      quick.className = "ll-pos-cash-quick";
+      quick.dataset.role = "cash-quick";
+      const proxyLabel = proxy.closest("label");
+      proxyLabel?.insertAdjacentElement("afterend", quick);
+    }
+
+    const total = readTotalFromAside(aside);
+    const amounts = quickCashAmounts(total);
+    const signature = [total, ...amounts].join("|");
+    if (quick.dataset.signature !== signature) {
+      quick.dataset.signature = signature;
+      quick.innerHTML = "";
+
+      const exact = document.createElement("button");
+      exact.type = "button";
+      exact.textContent = "Exact";
+      exact.addEventListener("click", () => {
+        const latest = findTenderInput(form).input;
+        if (!latest) return;
+        setNativeValue(latest, String(total));
+        const visible = box.querySelector<HTMLInputElement>('[data-role="tender-proxy"]');
+        if (visible) visible.value = String(total);
+      });
+      quick.appendChild(exact);
+
+      amounts.forEach((amount) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "GYD " + amount.toLocaleString("en-US");
+        button.addEventListener("click", () => {
+          const latest = findTenderInput(form).input;
+          if (!latest) return;
+          setNativeValue(latest, String(amount));
+          const visible = box.querySelector<HTMLInputElement>('[data-role="tender-proxy"]');
+          if (visible) visible.value = String(amount);
+        });
+        quick!.appendChild(button);
+      });
+    }
   } else if (proxy) {
     proxy.closest("label")?.remove();
+    box.querySelector('[data-role="cash-quick"]')?.remove();
   }
 
   let changeRow = box.querySelector<HTMLElement>('[data-role="change-row"]');
