@@ -21,6 +21,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <div style={{
+          position: "sticky", top: 0, zIndex: 99999, width: "100%",
+          background: "#7f1d1d", color: "#fff", textAlign: "center",
+          fontWeight: 800, letterSpacing: "0.08em", padding: "8px 12px",
+          fontSize: "12px"
+        }}>
+          SANDBOX / TEST MODE — NOT LIVE
+        </div>
         <AndroidPrintBridge />
         <SupervisorServiceGate />
         <PosMinimumWeightGuard />
