@@ -7,7 +7,7 @@ import "./portal.css";
 
 type PortalKind = "admin" | "staff";
 type Role = "staff" | "manager" | "admin";
-type Profile = { user_id: string; display_name: string; role: Role; active?: boolean };
+type Profile = { user_id: string; display_name: string; role: Role; active?: boolean; email?: string; last_sign_in_at?: string | null };
 type Service = { id: string; name: string; category: string; rate: number; unit: string; active: boolean };
 type Payment = { method?: string; status?: string; reference?: string; discount?: number };
 type OrderItem = { service_id?: string; label: string; category?: string; rate: number; unit: string; qty: number; total: number };
@@ -73,6 +73,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [team, setTeam] = useState<Profile[]>([]);
+  const [staffForm, setStaffForm] = useState({ displayName: "", email: "", role: "staff" as Role, password: "" });
+  const [staffPasswordTarget, setStaffPasswordTarget] = useState<Profile | null>(null);
+  const [staffPassword, setStaffPassword] = useState("");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Active");
@@ -148,13 +151,14 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-7);
     const [alertResult, teamResult, attendanceResult, accessResult, contentResult] = await Promise.all([
       supabase.from("staff_security_alerts").select("id,requester_email,created_at,resolved_at").order("created_at", { ascending: false }).limit(100),
-      supabase.from("staff_profiles").select("user_id,display_name,role,active").order("display_name"),
+      supabase.functions.invoke("admin-staff-access", { body: { action: "list" } }),
       supabase.from("staff_attendance").select("id,staff_user_id,check_in_at,check_out_at").gte("check_in_at",weekStart.toISOString()).order("check_in_at",{ascending:false}),
       supabase.from("staff_access_sessions").select("id,staff_user_id,login_at,logout_at,last_activity_at").gte("login_at",weekStart.toISOString()).order("login_at",{ascending:false}),
       supabase.from("site_content").select("id,business_name,tagline,hero_eyebrow,hero_title,hero_emphasis,hero_description,address,directions,maps_url,phone,mmg_number,mmg_name,estimate_disclaimer,loop_credit_options").eq("id",true).single(),
     ]);
     setAlerts((alertResult.data as Alert[]) ?? []);
-    setTeam((teamResult.data as Profile[]) ?? []);
+    if (teamResult.error) setMessage(`Staff accounts could not be loaded: ${teamResult.error.message}`);
+    setTeam(((teamResult.data as { team?: Profile[] } | null)?.team) ?? []);
     setAttendance((attendanceResult.data as Attendance[]) ?? []);
     setAccessSessions((accessResult.data as AccessSession[]) ?? []);
     if (!contentResult.error) setSiteContent(contentResult.data as SiteContent);
@@ -392,7 +396,58 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     else { await loadDashboard(); setMessage(`${name} was updated.`); }
     setBusy(false);
   }
-  async function updateTeam(member: Profile) { const { error } = await supabase.from("staff_profiles").update({ display_name: member.display_name, role: member.role, active: member.active }).eq("user_id", member.user_id); if (error) setMessage(error.message); else { await loadAdmin(); setMessage("Team access updated."); } }
+  async function createStaff(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setMessage("");
+    const { error } = await supabase.functions.invoke("admin-staff-access", {
+      body: {
+        action: "create",
+        display_name: staffForm.displayName.trim(),
+        email: staffForm.email.trim(),
+        role: staffForm.role,
+        password: staffForm.password,
+      },
+    });
+    if (error) setMessage(`Staff account was not created: ${error.message}`);
+    else {
+      setStaffForm({ displayName: "", email: "", role: "staff", password: "" });
+      await loadAdmin();
+      setMessage("Staff login created and activated.");
+    }
+    setBusy(false);
+  }
+
+  async function updateTeam(member: Profile) {
+    setBusy(true); setMessage("");
+    const { error } = await supabase.functions.invoke("admin-staff-access", {
+      body: {
+        action: "update",
+        user_id: member.user_id,
+        display_name: member.display_name,
+        role: member.role,
+        active: member.active !== false,
+      },
+    });
+    if (error) setMessage(error.message);
+    else { await loadAdmin(); setMessage("Team access updated."); }
+    setBusy(false);
+  }
+
+  async function setTeamPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!staffPasswordTarget) return;
+    setBusy(true); setMessage("");
+    const { error } = await supabase.functions.invoke("admin-staff-access", {
+      body: { action: "set_password", user_id: staffPasswordTarget.user_id, password: staffPassword },
+    });
+    if (error) setMessage(error.message);
+    else {
+      setMessage(`Password updated for ${staffPasswordTarget.display_name}.`);
+      setStaffPasswordTarget(null);
+      setStaffPassword("");
+    }
+    setBusy(false);
+  }
   async function updateSiteContent(event: FormEvent) {
     event.preventDefault();
     if (!siteContent?.id || !profile) return;
@@ -889,8 +944,22 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <h2>Staff access</h2>
 </div>
 </div>
-<p className="muted">Change roles or deactivate access. New login accounts are created in Supabase Authentication before they appear here.</p>
+<p className="muted">Create staff logins, assign permissions, reset passwords, or deactivate access without leaving this panel.</p>
+<form className="staff-create-card" onSubmit={createStaff}>
+<div className="staff-create-grid">
+<label>Staff name<input value={staffForm.displayName} onChange={(e) => setStaffForm({ ...staffForm, displayName: e.target.value })} placeholder="e.g. Mary Jones" minLength={2} required /></label>
+<label>Email<input type="email" value={staffForm.email} onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })} placeholder="name@example.com" required /></label>
+<label>Role<select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value as Role })}>
+<option value="staff">Staff</option>
+<option value="manager">Supervisor</option>
+<option value="admin">Administrator</option>
+</select></label>
+<label>Temporary password<input type="password" value={staffForm.password} onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })} minLength={10} autoComplete="new-password" placeholder="At least 10 characters" required /></label>
+</div>
+<button type="submit" disabled={busy}>Add staff login</button>
+</form>
 <div className="admin-list">{team.map((member, index) => <div className="admin-row team-row" key={member.user_id}>
+<div className="team-identity"><strong>{member.display_name}</strong><small>{member.email || "Email unavailable"}</small>{member.last_sign_in_at && <small>Last login {dateTime(member.last_sign_in_at)}</small>}</div>
 <input aria-label="Display name" value={member.display_name} onChange={(e) => setTeam(team.map((s, i) => i === index ? { ...s, display_name: e.target.value } : s))}/>
 <select aria-label="Role" value={member.role} onChange={(e) => setTeam(team.map((s, i) => i === index ? { ...s, role: e.target.value as Role } : s))}>
 <option value="staff">Staff</option>
@@ -899,11 +968,22 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </select>
 <label className="toggle">
 <input type="checkbox" checked={member.active !== false} onChange={(e) => setTeam(team.map((s, i) => i === index ? { ...s, active: e.target.checked } : s))}/> Active</label>
-<button onClick={() => void updateTeam(member)}>Save access</button>
+<div className="team-actions"><button type="button" disabled={busy} onClick={() => void updateTeam(member)}>Save access</button><button type="button" className="secondary" onClick={() => { setStaffPasswordTarget(member); setStaffPassword(""); }}>Set password</button></div>
 </div>)}</div>
 <h3 className="report-heading">Attendance · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Check in</th><th>Check out</th><th>Hours</th></tr></thead><tbody>{attendance.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);const hours=row.check_out_at?((new Date(row.check_out_at).getTime()-new Date(row.check_in_at).getTime())/3600000).toFixed(2):"Open";return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.check_in_at)}</td><td>{row.check_out_at?dateTime(row.check_out_at):"Still checked in"}</td><td>{hours}</td></tr>})}</tbody></table></div>
 <h3 className="report-heading">System access · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Login</th><th>Logout</th><th>Last activity</th></tr></thead><tbody>{accessSessions.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.login_at)}</td><td>{row.logout_at?dateTime(row.logout_at):"Active / not signed out"}</td><td>{dateTime(row.last_activity_at)}</td></tr>})}</tbody></table></div>
 </section>}
+
+      {staffPasswordTarget && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Set staff password">
+<form className="modal-card action-modal" onSubmit={setTeamPassword}>
+<button type="button" className="modal-close" onClick={() => { setStaffPasswordTarget(null); setStaffPassword(""); }}>×</button>
+<p className="eyebrow">Administrator only</p>
+<h2>Set password</h2>
+<p className="muted">Choose a new password for {staffPasswordTarget.display_name}. It takes effect immediately.</p>
+<label>New password<input type="password" value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} minLength={10} autoComplete="new-password" required /></label>
+<button type="submit" disabled={busy || staffPassword.length < 10}>Update password</button>
+</form>
+</div>}
 
       {view === "security" && isAdmin && <section className="panel">
 <div className="section-heading">
