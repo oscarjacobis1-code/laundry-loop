@@ -38,9 +38,14 @@ test("keeps attendance authentication isolated from system access", () => {
   assert.match(staffDirectoryFunction, /staff_check_in/);
   assert.match(staffDirectoryFunction, /staff_check_out/);
   assert.match(portal, /attendancePassword/);
-  assert.doesNotMatch(portal, /await supabase\.auth\.signOut\(\); setPassword\(""
+  assert.ok(!portal.includes('await supabase.auth.signOut(); setPassword("")'));
+});
 
-/);
+test("staff login directory is dynamic and excludes admins", () => {
+  assert.match(portal, /staffDirectory\.map/);
+  assert.match(staffDirectoryFunction, /\.eq\("active", true\)/);
+  assert.match(staffDirectoryFunction, /\.in\("role", \["staff", "manager"\]\)/);
+  assert.doesNotMatch(staffDirectoryFunction, /\.in\("role", \["staff", "manager", "admin"\]\)/);
 });
 
 test("isolates staff and administrator browser sessions", () => {
