@@ -8,6 +8,7 @@ import "./portal.css";
 type PortalKind = "admin" | "staff";
 type Role = "staff" | "manager" | "admin";
 type Profile = { user_id: string; display_name: string; role: Role; active?: boolean; email?: string; last_sign_in_at?: string | null };
+type StaffDirectoryEntry = { user_id: string; display_name: string; role: "staff" | "manager" };
 type Service = { id: string; name: string; category: string; rate: number; unit: string; active: boolean };
 type Payment = { method?: string; status?: string; reference?: string; discount?: number };
 type OrderItem = { service_id?: string; label: string; category?: string; rate: number; unit: string; qty: number; total: number };
@@ -85,7 +86,8 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [posItems, setPosItems] = useState<Array<{ service_id: string; qty: number }>>([{ service_id: "", qty: 1 }]);
   const [inventoryForm, setInventoryForm] = useState({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" });
   const [inventoryItemForm, setInventoryItemForm] = useState({ name: "", unit: "", reorderLevel: "", openingStock: "" });
-  const [identity, setIdentity] = useState<"affia" | "staff" | "">("");
+  const [identity, setIdentity] = useState("");
+  const [staffDirectory, setStaffDirectory] = useState<StaffDirectoryEntry[]>([]);
   const [attendanceMode, setAttendanceMode] = useState<"in"|"out">("in");
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [accessSessions, setAccessSessions] = useState<AccessSession[]>([]);
@@ -101,6 +103,20 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   const isAdmin = profile?.role === "admin";
   const canManageServices = profile?.role === "manager" || isAdmin;
+
+  const loadStaffDirectory = useCallback(async () => {
+    const { data, error } = await supabase.functions.invoke("staff-login-directory", { body: { action: "list" } });
+    if (error) {
+      setMessage("Staff list could not be loaded. Refresh and try again.");
+      return;
+    }
+    const staff = ((data as { staff?: StaffDirectoryEntry[] } | null)?.staff) ?? [];
+    setStaffDirectory(staff);
+    if (identity && !staff.some((member) => member.user_id === identity)) {
+      setIdentity("");
+      setEmail("");
+    }
+  }, [identity, supabase]);
 
   const loadCompletedOrders = useCallback(async (rawSearch = "") => {
     const searchTerm = rawSearch.replace(/[^\p{L}\p{N}\s+-]/gu, "").trim().slice(0, 80);
@@ -190,6 +206,10 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [portal, loadAdmin, loadDashboard, supabase]);
 
   useEffect(() => {
+    if (portal === "staff") void loadStaffDirectory();
+  }, [loadStaffDirectory, portal]);
+
+  useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => { if (data.session) await validateRole(data.session.user.id); setBusy(false); });
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
@@ -241,16 +261,41 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error) setMessage("Email or password is incorrect."); else if (data.user) { setPassword(""); await validateRole(data.user.id); }
+    if (portal === "staff") {
+      if (!identity) { setMessage("Choose your name first."); setBusy(false); return; }
+      const { data, error } = await supabase.functions.invoke("staff-login-directory", {
+        body: { action: "login", user_id: identity, password },
+      });
+      if (error || !(data as { session?: { access_token: string; refresh_token: string }; user_id?: string } | null)?.session) {
+        setMessage("Password is incorrect.");
+      } else {
+        const payload = data as { session: { access_token: string; refresh_token: string }; user_id: string };
+        const { error: sessionError } = await supabase.auth.setSession(payload.session);
+        if (sessionError) setMessage("Sign-in session could not be started.");
+        else { setPassword(""); await validateRole(payload.user_id); }
+      }
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) setMessage("Email or password is incorrect."); else if (data.user) { setPassword(""); await validateRole(data.user.id); }
+    }
     setBusy(false);
   }
 
   async function forgotPassword() {
+    if (portal === "staff") {
+      if (!identity) { setMessage("Choose your name first, then select Forgot password."); return; }
+      setBusy(true); setMessage("");
+      const { error } = await supabase.functions.invoke("staff-login-directory", {
+        body: { action: "recovery", user_id: identity, redirect_to: `${window.location.origin}/staff` },
+      });
+      if (error) setMessage("The recovery email could not be sent right now. Please try again later.");
+      else { setRecoveryRequested(true); window.setTimeout(()=>setRecoveryRequested(false),60000); setMessage("If this account is authorized, a password reset email is on its way."); }
+      setBusy(false);
+      return;
+    }
     if (!email.trim()) { setMessage("Enter your email first, then select Forgot password."); return; }
     setBusy(true); setMessage("");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/${portal}` });
-    if (portal === "staff") await supabase.rpc("request_staff_password_recovery", { p_email: email.trim() });
     if (error) setMessage(error.status === 429 ? "A recovery email was requested too recently. Wait about 60 seconds, then use only the newest link. If delivery still fails, contact the administrator." : "The recovery email could not be sent right now. Please try again later.");
     else { setRecoveryRequested(true); window.setTimeout(()=>setRecoveryRequested(false),60000); setMessage("If this account is authorized, a password reset email is on its way. Use only the newest link; each link works once."); }
     setBusy(false);
@@ -258,14 +303,14 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   async function attendanceAction(event:FormEvent){
     event.preventDefault(); setBusy(true); setMessage("");
-    try {
-      await runAttendanceAction(email.trim(), attendancePassword, attendanceMode);
-      setMessage(`${identity==="affia"?"Affia":"In-store Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The attendance request could not be completed.");
-    } finally {
-      setAttendancePassword(""); setBusy(false);
-    }
+    if (!identity) { setMessage("Choose your name first."); setBusy(false); return; }
+    const member = staffDirectory.find((item) => item.user_id === identity);
+    const { error } = await supabase.functions.invoke("staff-login-directory", {
+      body: { action: "attendance", user_id: identity, password: attendancePassword, mode: attendanceMode },
+    });
+    if (error) setMessage("The attendance request could not be completed. Check your password and try again.");
+    else setMessage(`${member?.display_name || "Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
+    setAttendancePassword(""); setBusy(false);
   }
 
   async function signOut(){
@@ -522,14 +567,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <section className="staff-welcome">
 <p className="eyebrow">Secure staff portal</p><h1>Welcome to The Laundry Loop</h1><p className="muted">Who are you?</p>
 <div className="identity-grid">
-<button type="button" className={identity==="affia"?"identity active":"identity"} onClick={()=>{setIdentity("affia");setEmail("affiamcpherson382@gmail.com");setMessage("");}}><strong>Affia</strong><small>Supervisor</small></button>
-<button type="button" className={identity==="staff"?"identity active":"identity"} onClick={()=>{setIdentity("staff");setEmail("oscarjacobis1@gmail.com");setMessage("");}}><strong>In-store Staff</strong><small>Operations</small></button>
+{staffDirectory.map((member) => <button type="button" key={member.user_id} className={identity===member.user_id?"identity active":"identity"} onClick={()=>{setIdentity(member.user_id);setEmail("");setMessage("");}}>
+<strong>{member.display_name}</strong><small>{member.role === "manager" ? "Supervisor" : "Staff"}</small>
+</button>)}
+{!staffDirectory.length && <p className="muted">No active staff or supervisors are available.</p>}
 </div>
 <div className="staff-entry-grid">
 <section className="login-card compact"><p className="eyebrow">Attendance</p><h2>Check in or out</h2><p className="muted">Use your own password so the correct work time is recorded.</p>
 <div className="segmented"><button type="button" className={attendanceMode==="in"?"active":""} onClick={()=>setAttendanceMode("in")}>Check in</button><button type="button" className={attendanceMode==="out"?"active":""} onClick={()=>setAttendanceMode("out")}>Check out</button></div>
 <form onSubmit={attendanceAction}><label>Password<input type="password" autoComplete="current-password" value={attendancePassword} onChange={e=>setAttendancePassword(e.target.value)} disabled={!identity} required/></label><button disabled={busy||!identity}>Confirm {attendanceMode}</button></form></section>
-<section className="login-card compact"><p className="eyebrow">System access</p><h2>{identity?`Welcome, ${identity==="affia"?"Affia":"In-store Staff"}`:"Choose your name"}</h2><p className="muted">Sign in to take and manage orders.</p>
+<section className="login-card compact"><p className="eyebrow">System access</p><h2>{identity?`Welcome, ${staffDirectory.find((member) => member.user_id === identity)?.display_name || "Staff"}`:"Choose your name"}</h2><p className="muted">Sign in to take and manage orders.</p>
 <form onSubmit={signIn}><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} disabled={!identity} required/></label><button disabled={busy||!identity}>Sign in</button></form>
 <button className="text-button" type="button" onClick={forgotPassword} disabled={busy || recoveryRequested || !email}>{recoveryRequested?"Try again in 60 seconds":"Forgot password?"}</button></section>
 </div>{message&&<p className="notice" role="status">{message}</p>}<Link className="admin-route-note" href="/admin">Administrator sign in</Link>
