@@ -260,3 +260,16 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .express-disclaimer{padding:10px 12px;border:1px solid #e8d8a8;border-radius:5px;background:#fff8e8;color:#5f4b20;font-size:.75rem;line-height:1.45}
 .express-badge{margin-left:7px;background:#fff3cd;color:#6b5300;border-color:#e8d58b}
 .express-receipt-note{padding:8px 0;font-size:.72rem!important;line-height:1.35!important;color:#111!important}
+
+
+/* Staff account management */
+.staff-create-card{margin:18px 0 22px;padding:18px;border:1px solid var(--line);background:var(--surface);border-radius:16px}
+.staff-create-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.staff-create-grid label{display:grid;gap:7px;font-size:12px;font-weight:700;color:var(--sub)}
+.team-row{grid-template-columns:minmax(190px,1.25fr) minmax(150px,1fr) minmax(130px,.75fr) auto minmax(180px,auto);align-items:center}
+.team-identity{display:grid;gap:3px}
+.team-identity strong{font-size:14px}
+.team-identity small{color:var(--sub);font-size:11px;overflow-wrap:anywhere}
+.team-actions{display:flex;gap:8px;flex-wrap:wrap}
+.team-actions button{white-space:nowrap}
+@media (max-width:900px){.staff-create-grid{grid-template-columns:1fr}.team-row{grid-template-columns:1fr}.team-actions{width:100%}}
