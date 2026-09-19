@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
+import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import kotlin.concurrent.thread
@@ -222,11 +223,21 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (printedOrder != null) markPrinted(printedOrder)
+                prefs.edit()
+                    .putLong("last_successful_print_at", System.currentTimeMillis())
+                    .putString("last_successful_print_order", printedOrder ?: "")
+                    .putString("last_printer_status", "online")
+                    .apply()
                 runOnUiThread {
                     status.text = if (openDrawer) "Two receipts printed; cash drawer opened." else "Two receipts sent to printer."
                     if (finishWhenDone) finish()
                 }
             } catch (e: Exception) {
+                prefs.edit()
+                    .putString("last_printer_status", "offline")
+                    .putLong("last_printer_error_at", System.currentTimeMillis())
+                    .putString("last_printer_error", e.message ?: "connection failed")
+                    .apply()
                 runOnUiThread {
                     status.text = "Printer error: ${e.message ?: "connection failed"}"
                 }
@@ -243,6 +254,7 @@ class MainActivity : AppCompatActivity() {
             if (mode == "receipt") {
                 repeat(RECEIPT_COPIES) {
                     writeStyledReceipt(out, text, orderCode)
+                    writeWebsiteQr(out, orderCode)
                     out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
                     out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
                 }
@@ -302,6 +314,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         writeAsciiLine(out, border)
+        out.write(byteArrayOf(0x1B, 0x61, 0x00))
+    }
+
+    private fun writeWebsiteQr(out: ByteArrayOutputStream, orderCode: String?) {
+        val targetUrl = if (orderCode.isNullOrBlank()) {
+            WEBSITE_URL
+        } else {
+            WEBSITE_URL + "/?track=" + URLEncoder.encode(orderCode.trim(), "UTF-8")
+        }
+        val data = targetUrl.toByteArray(Charsets.US_ASCII)
+        val storeLength = data.size + 3
+        val pL = (storeLength and 0xFF).toByte()
+        val pH = ((storeLength shr 8) and 0xFF).toByte()
+
+        out.write(byteArrayOf(0x1B, 0x61, 0x01))
+        writeAsciiLine(out, if (orderCode.isNullOrBlank()) WEBSITE_DISPLAY else "Scan to track order")
+        out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00))
+        out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x05))
+        out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31))
+        out.write(byteArrayOf(0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30))
+        out.write(data)
+        out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30))
+        out.write(0x0A)
         out.write(byteArrayOf(0x1B, 0x61, 0x00))
     }
 
@@ -375,6 +410,8 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_TRACKED_PRINTED_ORDERS = 5000
         private const val CONNECT_TIMEOUT_MS = 3000L
         private const val WRITE_TIMEOUT_MS = 5000L
+        private const val WEBSITE_URL = "https://thelaundryloop.net"
+        private const val WEBSITE_DISPLAY = "thelaundryloop.net"
         private val PHONE_LINE = Regex("^[+0-9][0-9 ()-]{6,}$")
         private val LB_ITEM_LINE = Regex("^(.+?)\\s+x\\s+([0-9]+(?:\\.[0-9]+)?)\\s+(?:lb|lbs)$", RegexOption.IGNORE_CASE)
         private val MONEY_LINE = Regex("^-?\\s*GYD\\s+.+$", RegexOption.IGNORE_CASE)
