@@ -80,3 +80,11 @@ test("does not expose a staff or administrator login in public navigation", () =
   assert.ok(!publicHtml.includes(">Staff Login<"));
   assert.ok(!publicHtml.includes(">Admin Login<"));
 });
+
+
+test("regular staff sees only daily revenue metrics", () => {
+  assert.ok(portal.includes('profile?.role === "staff" ? "Revenue · today" : "Revenue · 30 days"'));
+  assert.ok(portal.includes('profile?.role === "staff" ? "Orders · today" : "Orders · 30 days"'));
+  assert.ok(portal.includes('profile?.role !== "staff"'));
+  assert.ok(portal.includes('loadDashboard(profile?.role)'));
+});

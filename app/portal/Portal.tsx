@@ -336,7 +336,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       p_order_id: order.id, p_status: patch.status ?? null, p_payment_status: patch.paymentStatus ?? null,
       p_discount_gyd: patch.discount ?? null, p_notes: patch.notes ?? null,
     });
-    if (error) setMessage(error.message); else await loadDashboard();
+    if (error) setMessage(error.message); else await loadDashboard(profile?.role);
     setBusy(false);
   }
 
@@ -361,7 +361,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     else {
       const firstActive = services.find((service) => service.active);
       const defaultPosService = services.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;
-      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]); await loadDashboard();
+      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]); await loadDashboard(profile?.role);
       const saved = data as Order; setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);
     }
     setBusy(false);
@@ -373,7 +373,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const items=paperItems.map(row=>({service:services.find(s=>s.id===row.service_id),qty:Number(row.qty)})).filter(row=>row.service&&row.qty>0);
     if(!items.length){setMessage("Add at least one laundry service.");setBusy(false);return;}
     const {data,error}=await supabase.rpc("staff_create_recovered_order",{p_name:paper.name.trim(),p_phone:phoneDigits(paper.phone),p_items:items.map(row=>({label:row.service!.name,qty:row.qty})),p_notes:paper.notes.trim(),p_payment:{method:paper.paymentMethod,status:paper.paymentStatus},p_original_transaction_at:new Date(paper.originalAt).toISOString(),p_paper_reference:paper.reference.trim()});
-    if(error)setMessage(error.message);else{setPaper({originalAt:"",reference:"",name:"",phone:"",notes:"",paymentMethod:"Cash",paymentStatus:"Pay at Pickup"});setPaperItems([{service_id:services[0]?.id??"",qty:1}]);await loadDashboard();setSelectedOrder(data as Order);setView("orders");setMessage("Paper order entered. Original and entry times were both preserved.");}setBusy(false);
+    if(error)setMessage(error.message);else{setPaper({originalAt:"",reference:"",name:"",phone:"",notes:"",paymentMethod:"Cash",paymentStatus:"Pay at Pickup"});setPaperItems([{service_id:services[0]?.id??"",qty:1}]);await loadDashboard(profile?.role);setSelectedOrder(data as Order);setView("orders");setMessage("Paper order entered. Original and entry times were both preserved.");}setBusy(false);
   }
 
   async function submitInventory(event: FormEvent) {
@@ -382,7 +382,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       p_inventory_item_id: inventoryForm.itemId, p_movement_type: inventoryForm.type,
       p_quantity: Number(inventoryForm.quantity), p_unit_cost: inventoryForm.unitCost ? Number(inventoryForm.unitCost) : null, p_note: inventoryForm.note,
     });
-    if (error) setMessage(error.message); else { setInventoryForm({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" }); await loadDashboard(); setMessage("Inventory movement recorded."); }
+    if (error) setMessage(error.message); else { setInventoryForm({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" }); await loadDashboard(profile?.role); setMessage("Inventory movement recorded."); }
     setBusy(false);
   }
 
@@ -396,7 +396,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       p_name: inventoryItemForm.name.trim(), p_unit: inventoryItemForm.unit.trim(), p_reorder_level: reorderLevel, p_opening_stock: openingStock,
     });
     if (error) setMessage(`Inventory item was not added: ${error.message}`);
-    else { setInventoryItemForm({ name: "", unit: "", reorderLevel: "", openingStock: "" }); await loadDashboard(); setMessage(`${String((data as {item?:{name?:string}})?.item?.name || "New inventory item")} added successfully.`); }
+    else { setInventoryItemForm({ name: "", unit: "", reorderLevel: "", openingStock: "" }); await loadDashboard(profile?.role); setMessage(`${String((data as {item?:{name?:string}})?.item?.name || "New inventory item")} added successfully.`); }
     setBusy(false);
   }
 
@@ -424,7 +424,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     if (error) setMessage(`Service was not added: ${error.message}`);
     else {
       setServiceForm({ name: "", category, rate: "", unit, active: true });
-      await loadDashboard();
+      await loadDashboard(profile?.role);
       setMessage(`${name} was added to Services & pricing.`);
     }
     setBusy(false);
@@ -441,7 +441,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setBusy(true); setMessage("");
     const { error } = await supabase.from("service_catalog").update({ name, category, rate, unit, active: service.active }).eq("id", service.id);
     if (error) setMessage(`Service was not updated: ${error.message}`);
-    else { await loadDashboard(); setMessage(`${name} was updated.`); }
+    else { await loadDashboard(profile?.role); setMessage(`${name} was updated.`); }
     setBusy(false);
   }
   async function edgeFunctionErrorMessage(error: unknown, fallback: string) {
@@ -649,7 +649,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </div>
 <div className="top-actions">
 <span className="live-dot">Live</span>
-<button className="secondary" onClick={() => { void loadDashboard(); if (isAdmin) void loadAdmin(); }}>Refresh</button>
+<button className="secondary" onClick={() => { void loadDashboard(profile?.role); if (isAdmin) void loadAdmin(); }}>Refresh</button>
 </div>
 </header>
       {message && <p className="notice" role="status">{message}</p>}
