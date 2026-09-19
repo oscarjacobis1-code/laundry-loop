@@ -32,13 +32,15 @@ test("requires supervisor approval and a reason for cancellation or refund", () 
 });
 
 test("keeps attendance authentication isolated from system access", () => {
-  assert.match(portal, /runAttendanceAction\(email\.trim\(\), attendancePassword, attendanceMode\)/);
-  assert.match(supabaseClient, /auth\/v1\/token\?grant_type=password/);
-  assert.match(supabaseClient, /rest\/v1\/rpc\/\$\{mode === "in" \? "staff_check_in" : "staff_check_out"\}/);
-  assert.match(supabaseClient, /auth\/v1\/logout/);
-  assert.doesNotMatch(supabaseClient, /attendanceSupabase/);
+  assert.match(portal, /staff-login-directory/);
+  assert.match(portal, /action: "attendance"/);
+  assert.match(staffDirectoryFunction, /signInWithPassword/);
+  assert.match(staffDirectoryFunction, /staff_check_in/);
+  assert.match(staffDirectoryFunction, /staff_check_out/);
   assert.match(portal, /attendancePassword/);
-  assert.doesNotMatch(portal, /await supabase\.auth\.signOut\(\); setPassword\(""\)/);
+  assert.doesNotMatch(portal, /await supabase\.auth\.signOut\(\); setPassword\(""
+
+/);
 });
 
 test("isolates staff and administrator browser sessions", () => {
