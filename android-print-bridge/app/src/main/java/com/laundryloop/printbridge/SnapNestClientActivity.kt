@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
@@ -16,9 +18,19 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.text.DateFormat
+import java.util.Date
+import kotlin.concurrent.thread
 
 class SnapNestClientActivity : AppCompatActivity() {
+    private val printerPrefs by lazy { getSharedPreferences("printer", MODE_PRIVATE) }
     private lateinit var status: TextView
+    private lateinit var printerStatus: TextView
+    private lateinit var internetStatus: TextView
+    private lateinit var lastPrintStatus: TextView
+    private lateinit var alerts: TextView
     private lateinit var billingInfo: TextView
     private lateinit var email: EditText
     private lateinit var password: EditText
@@ -41,6 +53,11 @@ class SnapNestClientActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshDeviceDashboard()
     }
 
     private fun buildUi() {
