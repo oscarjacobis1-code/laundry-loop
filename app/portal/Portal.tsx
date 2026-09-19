@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createPortalSupabase, runAttendanceAction } from "./supabase";
+import { createPortalSupabase } from "./supabase";
 import "./portal.css";
 
 type PortalKind = "admin" | "staff";
