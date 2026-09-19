@@ -84,13 +84,33 @@ class SnapNestClientActivity : AppCompatActivity() {
         }
         root.addView(status)
 
+        root.addView(TextView(this).apply {
+            text = "System Overview"
+            textSize = 21f
+            setPadding(0, gap, 0, gap)
+        })
+
+        printerStatus = dashboardLine("Printer", "Checking…")
+        internetStatus = dashboardLine("Internet", "Checking…")
+        lastPrintStatus = dashboardLine("Last print", "No successful print recorded yet.")
+        alerts = dashboardLine("Alerts", "Checking system…")
+        listOf(printerStatus, internetStatus, lastPrintStatus, alerts).forEach(root::addView)
+
         root.addView(Button(this).apply {
-            text = "Printer & Device Status"
+            text = "Refresh Device Status"
+            setOnClickListener { refreshDeviceDashboard() }
+        })
+        root.addView(Button(this).apply {
+            text = "Printer Settings & Test"
             setOnClickListener { startActivity(Intent(this@SnapNestClientActivity, MainActivity::class.java)) }
         })
         root.addView(Button(this).apply {
             text = "Open Laundry Loop POS"
             setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://thelaundryloop.net/staff"))) }
+        })
+        root.addView(Button(this).apply {
+            text = "Open Admin"
+            setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://thelaundryloop.net/admin"))) }
         })
 
         root.addView(TextView(this).apply {
