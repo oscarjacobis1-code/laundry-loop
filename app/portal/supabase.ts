@@ -9,7 +9,7 @@ export function createPortalSupabase(portal: "admin" | "staff") {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: `laundry-loop-sandbox-${portal}-auth-v1`,
+      storageKey: `laundry-loop-${portal}-auth-v2`,
       storage: typeof window === "undefined" ? undefined : window.sessionStorage,
     },
   });
