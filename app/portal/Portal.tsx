@@ -127,7 +127,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setOrders((orderResult.data as Order[]) ?? []);
     const loadedServices = (serviceResult.data as Service[]) ?? [];
     setServices(loadedServices);
-    const firstActive = loadedServices.find((service) => service.active);
+    const firstActive = loadedServices.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? loadedServices.find((service) => service.active);
     if (firstActive) {
       setPosItems((rows) => rows.map((row, index) => index === 0 && !row.service_id ? { ...row, service_id: firstActive.id } : row));
       setPaperItems((rows) => rows.map((row, index) => index === 0 && !row.service_id ? { ...row, service_id: firstActive.id } : row));
@@ -306,7 +306,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     });
     if (error) setPosMessage(`The order was not saved: ${error.message}`);
     else {
-      const firstActive = services.find((service) => service.active);
+      const firstActive = services.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? services.find((service) => service.active);
       setPos(emptyPos); setPosItems([{ service_id: firstActive?.id ?? "", qty: 1 }]); await loadDashboard();
       const saved = data as Order; setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);
     }
