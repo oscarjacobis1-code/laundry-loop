@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = "https://coohutrnqcxjhkxprama.supabase.co";
-const publishableKey = "sb_publishable_WwvZpvMkiHM3YOLhwty85g_wGZKQ84e";
+const supabaseUrl = "https://ipztkksozsmnavgqpbki.supabase.co";
+const publishableKey = "sb_publishable_G19li-hSDBEN6Ii_MAXdVg_ojl_e4pK";
 
 export function createPortalSupabase(portal: "admin" | "staff") {
   return createClient(supabaseUrl, publishableKey, {
@@ -9,7 +9,7 @@ export function createPortalSupabase(portal: "admin" | "staff") {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: `laundry-loop-${portal}-auth-v2`,
+      storageKey: `laundry-loop-sandbox-${portal}-auth-v1`,
       storage: typeof window === "undefined" ? undefined : window.sessionStorage,
     },
   });
