@@ -206,7 +206,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [portal, loadAdmin, loadDashboard, supabase]);
 
   useEffect(() => {
-    if (portal === "staff") void loadStaffDirectory();
+    if (portal !== "staff") return;
+    const timer = window.setTimeout(() => void loadStaffDirectory(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadStaffDirectory, portal]);
 
   useEffect(() => {
@@ -441,6 +443,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     else { await loadDashboard(); setMessage(`${name} was updated.`); }
     setBusy(false);
   }
+  async function edgeFunctionErrorMessage(error: unknown, fallback: string) {
+    const maybe = error as { message?: string; context?: Response };
+    if (maybe?.context) {
+      const body = await maybe.context.clone().json().catch(() => null) as { error?: string; message?: string } | null;
+      const detail = body?.error || body?.message;
+      if (detail) return detail;
+    }
+    return maybe?.message || fallback;
+  }
+
   async function createStaff(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setMessage("");
@@ -453,7 +465,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         password: staffForm.password,
       },
     });
-    if (error) setMessage(`Staff account was not created: ${error.message}`);
+    if (error) setMessage(`Staff account was not created: ${await edgeFunctionErrorMessage(error, "Please check the email and try again.")}`);
     else {
       setStaffForm({ displayName: "", email: "", role: "staff", password: "" });
       await loadAdmin();
@@ -578,7 +590,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <form onSubmit={attendanceAction}><label>Password<input type="password" autoComplete="current-password" value={attendancePassword} onChange={e=>setAttendancePassword(e.target.value)} disabled={!identity} required/></label><button disabled={busy||!identity}>Confirm {attendanceMode}</button></form></section>
 <section className="login-card compact"><p className="eyebrow">System access</p><h2>{identity?`Welcome, ${staffDirectory.find((member) => member.user_id === identity)?.display_name || "Staff"}`:"Choose your name"}</h2><p className="muted">Sign in to take and manage orders.</p>
 <form onSubmit={signIn}><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} disabled={!identity} required/></label><button disabled={busy||!identity}>Sign in</button></form>
-<button className="text-button" type="button" onClick={forgotPassword} disabled={busy || recoveryRequested || !email}>{recoveryRequested?"Try again in 60 seconds":"Forgot password?"}</button></section>
+<button className="text-button" type="button" onClick={forgotPassword} disabled={busy || recoveryRequested || !identity}>{recoveryRequested?"Try again in 60 seconds":"Forgot password?"}</button></section>
 </div>{message&&<p className="notice" role="status">{message}</p>}<Link className="admin-route-note" href="/admin">Administrator sign in</Link>
 </section></main>;
   if (!profile) return <main className="portal-shell staff-entry admin-entry">
