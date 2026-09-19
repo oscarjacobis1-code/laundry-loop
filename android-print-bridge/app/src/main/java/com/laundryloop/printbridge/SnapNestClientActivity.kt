@@ -201,6 +201,63 @@ class SnapNestClientActivity : AppCompatActivity() {
         setContentView(ScrollView(this).apply { addView(root) })
     }
 
+    private fun dashboardLine(label: String, value: String): TextView = TextView(this).apply {
+        text = label + ": " + value
+        textSize = 15f
+        setPadding(0, 6, 0, 6)
+    }
+
+    private fun refreshDeviceDashboard() {
+        val internetOnline = hasInternetConnection()
+        internetStatus.text = if (internetOnline) "Internet: Online" else "Internet: Offline"
+
+        val lastAt = printerPrefs.getLong("last_successful_print_at", 0L)
+        val lastOrder = printerPrefs.getString("last_successful_print_order", "").orEmpty()
+        lastPrintStatus.text = if (lastAt > 0L) {
+            val whenText = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(lastAt))
+            if (lastOrder.isBlank()) "Last print: " + whenText else "Last print: " + whenText + " • " + lastOrder
+        } else {
+            "Last print: No successful print recorded yet."
+        }
+
+        val host = printerPrefs.getString("host", "192.168.1.87")?.trim().orEmpty()
+        val port = printerPrefs.getInt("port", 9100)
+        printerStatus.text = "Printer: Checking " + host + ":" + port + "…"
+        alerts.text = if (internetOnline) "Alerts: Checking printer…" else "Alerts: Internet connection is offline."
+
+        thread(name = "SnapNestPrinterHealth") {
+            val online = canReachPrinter(host, port)
+            printerPrefs.edit().putString("last_printer_status", if (online) "online" else "offline").apply()
+            runOnUiThread {
+                printerStatus.text = if (online) "Printer: Online • " + host + ":" + port else "Printer: Offline • " + host + ":" + port
+                val warnings = mutableListOf<String>()
+                if (!internetOnline) warnings += "Internet offline"
+                if (!online) warnings += "Printer offline"
+                val lastError = printerPrefs.getString("last_printer_error", "").orEmpty()
+                if (!online && lastError.isNotBlank()) warnings += "Last printer error: " + lastError
+                alerts.text = if (warnings.isEmpty()) "Alerts: No active warnings." else "Alerts: " + warnings.joinToString(" • ")
+                status.text = if (warnings.isEmpty()) "System status: Ready" else "System status: Attention needed"
+            }
+        }
+    }
+
+    private fun hasInternetConnection(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun canReachPrinter(host: String, port: Int): Boolean {
+        if (host.isBlank()) return false
+        return runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), 1600)
+            }
+            true
+        }.getOrDefault(false)
+    }
+
     private fun signInAndLoad() {
         val e = email.text.toString().trim()
         val p = password.text.toString()
