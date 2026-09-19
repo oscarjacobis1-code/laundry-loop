@@ -88,3 +88,10 @@ test("regular staff sees only daily revenue metrics", () => {
   assert.ok(portal.includes('profile?.role !== "staff"'));
   assert.ok(portal.includes('loadDashboard(profile?.role)'));
 });
+
+
+test("receipt modal does not duplicate the POS discount controls", () => {
+  assert.ok(portal.includes("Order discount"));
+  assert.ok(!portal.includes("receipt-discount-type"));
+  assert.ok(!portal.includes(">Apply discount<"));
+});

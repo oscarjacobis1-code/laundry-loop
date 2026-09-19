@@ -1112,11 +1112,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <button className="whatsapp-action" onClick={() => whatsapp(selectedOrder)}>WhatsApp</button>
 {profile.role!=="staff" && selectedOrder.status!=="Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({order:selectedOrder,type:selectedOrder.payment?.status==="Paid"?"refund":"cancel"}); setOrderActionReason(""); setSelectedOrder(null); }}>Cancel / Refund</button>}
 </div>
-{profile.role!=="staff" && <div className="discount-control">
-<label>Discount type<select id="receipt-discount-type" defaultValue="amount"><option value="amount">Fixed GYD</option><option value="percent">Percentage</option></select></label>
-<label>Value<input id="receipt-discount" type="number" min="0" step="0.1" defaultValue={selectedOrder.discount || 0}/></label>
-<button className="secondary" onClick={() => { const input = document.getElementById("receipt-discount") as HTMLInputElement; const type = (document.getElementById("receipt-discount-type") as HTMLSelectElement).value; const entered = Number(input.value); const subtotal = Number(selectedOrder.subtotal ?? selectedOrder.total + Number(selectedOrder.discount || 0)); if (!Number.isFinite(entered) || entered < 0 || (type === "percent" && entered > 100)) { setMessage(type === "percent" ? "Enter a percentage from 0 to 100." : "Enter a valid discount amount."); return; } const amount = type === "percent" ? Math.round(subtotal * entered) / 100 : entered; if (amount > subtotal) { setMessage("The discount cannot exceed the order subtotal."); return; } void patchOrder(selectedOrder, { discount: amount }); setSelectedOrder(null); }}>Apply discount</button>
-</div>}
+
 </div>
 </div>}
     {orderAction && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Cancel or refund order">

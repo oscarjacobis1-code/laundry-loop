@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
             window.decorView.alpha = 0f
             status = TextView(this)
+            moveTaskToBack(true)
             handleIntent(intent)
         } else {
             buildUi()
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         if (isPrintIntent(intent)) {
             overridePendingTransition(0, 0)
             window.decorView.alpha = 0f
+            moveTaskToBack(true)
         }
         handleIntent(intent)
     }
