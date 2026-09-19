@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
+import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import kotlin.concurrent.thread
@@ -243,7 +244,7 @@ class MainActivity : AppCompatActivity() {
             if (mode == "receipt") {
                 repeat(RECEIPT_COPIES) {
                     writeStyledReceipt(out, text, orderCode)
-                    writeWebsiteQr(out)
+                    writeWebsiteQr(out, orderCode)
                     out.write(byteArrayOf(0x0A, 0x0A, 0x0A))
                     out.write(byteArrayOf(0x1D, 0x56, 0x41, 0x03))
                 }
@@ -306,14 +307,19 @@ class MainActivity : AppCompatActivity() {
         out.write(byteArrayOf(0x1B, 0x61, 0x00))
     }
 
-    private fun writeWebsiteQr(out: ByteArrayOutputStream) {
-        val data = WEBSITE_URL.toByteArray(Charsets.US_ASCII)
+    private fun writeWebsiteQr(out: ByteArrayOutputStream, orderCode: String?) {
+        val targetUrl = if (orderCode.isNullOrBlank()) {
+            WEBSITE_URL
+        } else {
+            WEBSITE_URL + "/?track=" + URLEncoder.encode(orderCode.trim(), "UTF-8")
+        }
+        val data = targetUrl.toByteArray(Charsets.US_ASCII)
         val storeLength = data.size + 3
         val pL = (storeLength and 0xFF).toByte()
         val pH = ((storeLength shr 8) and 0xFF).toByte()
 
         out.write(byteArrayOf(0x1B, 0x61, 0x01))
-        writeAsciiLine(out, WEBSITE_DISPLAY)
+        writeAsciiLine(out, if (orderCode.isNullOrBlank()) WEBSITE_DISPLAY else "Scan to track order")
         out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00))
         out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x05))
         out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31))
