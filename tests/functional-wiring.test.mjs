@@ -181,3 +181,11 @@ test("admin CMS publishes public content without duplicating operational prices"
   assert.match(cmsMigration, /admins update site content/);
   assert.doesNotMatch(portal, /siteContent\.regular_rate/);
 });
+
+
+test("weight quantity input does not clamp partial typing", async () => {
+  const guard = await readFile(new URL("../app/portal/PosMinimumWeightGuard.tsx", import.meta.url), "utf8");
+  assert.ok(guard.includes('input.min = "0.5"'));
+  assert.ok(!guard.includes('current > 0 && current < MIN_WEIGHT_LB'));
+  assert.ok(guard.includes('data' ) || guard.includes('dataset.minimumWeightTotal'));
+});

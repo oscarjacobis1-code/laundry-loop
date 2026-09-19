@@ -27,11 +27,15 @@ function applyGuard() {
     if (!select || !input) return;
 
     if (isWeightService(select)) {
-      input.min = String(MIN_WEIGHT_LB);
-      const current = Number(input.value || 0);
-      if (current > 0 && current < MIN_WEIGHT_LB) setNativeValue(input, String(MIN_WEIGHT_LB));
+      // Do not clamp while the user is typing. Clamping "1" to "5" made
+      // values such as 15 or 20 impossible to enter. The 5 lb business rule
+      // is enforced at order validation/backend level; this field must remain
+      // free to accept any valid quantity while editing.
+      input.min = "0.5";
+      input.dataset.minimumWeightTotal = String(MIN_WEIGHT_LB);
     } else {
       input.min = "0.5";
+      delete input.dataset.minimumWeightTotal;
     }
   });
 }
