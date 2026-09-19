@@ -185,9 +185,15 @@ replaceOnce(
 );
 
 replaceOnce(
+  '{Number(selectedOrder.discount) > 0 && <div className="receipt-line">\n<span>Discount</span>\n<strong>− {money(selectedOrder.discount)}</strong>\n</div>}<div className="receipt-line receipt-total">',
+  '{Number(selectedOrder.discount) > 0 && <div className="receipt-line">\n<span>Discount</span>\n<strong>− {money(selectedOrder.discount)}</strong>\n</div>}{selectedOrder.express && <div className="receipt-line"><span>Express service +50%</span><strong>{money(selectedOrder.express_fee || 0)}</strong></div>}<div className="receipt-line receipt-total">',
+  'Express fee before receipt total',
+);
+
+replaceOnce(
   '{selectedOrder.payment?.method === "Cash" && Number.isFinite(Number(selectedOrder.payment?.cash_received)) && <><div className="receipt-line"><span>Cash Received</span><strong>{money(selectedOrder.payment?.cash_received)}</strong></div><div className="receipt-line"><span>Change</span><strong>{money(selectedOrder.payment?.change_due)}</strong></div></>}\n<p>Payment: {selectedOrder.payment?.method} · {selectedOrder.payment?.status}</p>',
-  '{selectedOrder.payment?.method === "Cash" && Number.isFinite(Number(selectedOrder.payment?.cash_received)) && <><div className="receipt-line"><span>Cash Received</span><strong>{money(selectedOrder.payment?.cash_received)}</strong></div><div className="receipt-line"><span>Change</span><strong>{money(selectedOrder.payment?.change_due)}</strong></div></>}{selectedOrder.express && <><div className="receipt-line"><span>Express service +50%</span><strong>{money(selectedOrder.express_fee || 0)}</strong></div><p className="express-receipt-note">Laundry received before 12:00 PM: ready by 5:00–6:00 PM<br/>Orders received after 12 PM: ready next morning<br/>Express service is subject to machine availability.<br/>Heavy stains, special treatment and bulky items can attract additional charges.</p></>}\n<p>Payment: {selectedOrder.payment?.method} · {selectedOrder.payment?.status}</p>',
-  'Express receipt details',
+  '{selectedOrder.payment?.method === "Cash" && Number.isFinite(Number(selectedOrder.payment?.cash_received)) && <><div className="receipt-text-rule">--------------------------------------------</div><div className="receipt-line"><span>Cash Received</span><strong>{money(selectedOrder.payment?.cash_received)}</strong></div><div className="receipt-text-rule">--------------------------------------------</div><div className="receipt-line"><span>Change</span><strong>{money(selectedOrder.payment?.change_due)}</strong></div></>}{selectedOrder.express && <p className="express-receipt-note">Laundry received before 12:00 PM: ready by 5:00–6:00 PM<br/>Orders received after 12 PM: ready next morning<br/>Express service is subject to machine availability.<br/>Heavy stains, special treatment and bulky items can attract additional charges.</p>}\n<p>Payment: {selectedOrder.payment?.method} · {selectedOrder.payment?.status}</p>',
+  'Receipt cash separators and express disclaimer',
 );
 
 replaceOnce(
