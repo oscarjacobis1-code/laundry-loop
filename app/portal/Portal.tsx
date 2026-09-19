@@ -132,14 +132,15 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     if (error) setMessage(`Completed orders could not be loaded: ${error.message}`);
     else setCompletedOrders((data as Order[]) ?? []);
     setCompletedBusy(false);
-  }, [supabase]);
+  }, [profile?.role, supabase]);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (roleOverride?: Role) => {
+    const summaryDays = (roleOverride ?? profile?.role) === "staff" ? 1 : 30;
     const [orderResult, serviceResult, inventoryResult, summaryResult, subscriptionResult] = await Promise.all([
       supabase.from("orders").select(orderColumns).order("created_at", { ascending: false }).limit(500),
       supabase.from("service_catalog").select("id,name,category,rate,unit,active").order("category").order("name"),
       supabase.rpc("staff_inventory_summary"),
-      supabase.rpc("staff_operations_summary", { p_days: 30 }),
+      supabase.rpc("staff_operations_summary", { p_days: summaryDays }),
       supabase.rpc("staff_subscription_summary"),
     ]);
     if (orderResult.error) setMessage(orderResult.error.message);
@@ -200,7 +201,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       if(!sessionId){sessionId=crypto.randomUUID();sessionStorage.setItem("ll-access-session",sessionId);}
       await supabase.rpc("staff_access_login",{p_session_id:sessionId});
     }
-    await loadDashboard();
+    await loadDashboard(data.role as Role);
     if (data.role === "admin") await loadAdmin();
     return true;
   }, [portal, loadAdmin, loadDashboard, supabase]);
@@ -869,30 +870,30 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       {view === "operations" && <section>
 <div className="queue-summary ops-summary">
 <article>
-<small>Orders · 30 days</small>
+<small>{profile?.role === "staff" ? "Orders · today" : "Orders · 30 days"}</small>
 <strong>{summary?.orders ?? 0}</strong>
 </article>
 <article>
-<small>Revenue · 30 days</small>
+<small>{profile?.role === "staff" ? "Revenue · today" : "Revenue · 30 days"}</small>
 <strong>{money(summary?.revenue)}</strong>
 </article>
-<article>
+{profile?.role !== "staff" && <><article>
 <small>Average order</small>
 <strong>{money(summary?.average_order_value)}</strong>
 </article>
 <article>
 <small>Repeat customers</small>
 <strong>{summary?.repeat_customers ?? 0}</strong>
-</article>
+</article></>}
 </div>
-<div className="panel operations-detail">
+{profile?.role !== "staff" && <div className="panel operations-detail">
 <h2>Operational snapshot</h2>
 <p>Average time from received to ready: <strong>{summary?.average_hours_to_ready == null ? "Not enough data" : `${summary.average_hours_to_ready} hours`}</strong>
 </p>
 <p>Busiest order hour: <strong>{summary?.busiest_hour == null ? "Not enough data" : `${String(summary.busiest_hour).padStart(2, "0")}:00`}</strong>
 </p>
 <p className="muted">This view updates from real order and status history—not browser storage.</p>
-</div>
+</div>}
 <div className="panel completed-orders-panel">
 <div className="section-heading completed-heading"><div><p className="eyebrow">Order history</p><h2>Completed / delivered orders</h2></div><span className="badge">{completedOrders.length}{completedOrders.length === 200 ? "+" : ""} shown</span></div>
 <p className="muted">Search past pickups by customer name, WhatsApp number or tracking code.</p>

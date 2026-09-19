@@ -23,15 +23,32 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val printRequest = isPrintIntent(intent)
+        if (printRequest) setTheme(R.style.PrintBridgeTheme)
         super.onCreate(savedInstanceState)
-        buildUi()
-        handleIntent(intent)
+        if (printRequest) {
+            overridePendingTransition(0, 0)
+            window.decorView.alpha = 0f
+            status = TextView(this)
+            handleIntent(intent)
+        } else {
+            buildUi()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (isPrintIntent(intent)) {
+            overridePendingTransition(0, 0)
+            window.decorView.alpha = 0f
+        }
         handleIntent(intent)
+    }
+
+    private fun isPrintIntent(intent: Intent?): Boolean {
+        val uri = intent?.data ?: return false
+        return uri.scheme == "laundryloop-print" && uri.host == "print"
     }
 
     private fun buildUi() {
@@ -225,7 +242,10 @@ class MainActivity : AppCompatActivity() {
                 if (printedOrder != null) markPrinted(printedOrder)
                 runOnUiThread {
                     status.text = if (openDrawer) "Two receipts printed; cash drawer opened." else "Two receipts sent to printer."
-                    if (finishWhenDone) finish()
+                    if (finishWhenDone) {
+                        overridePendingTransition(0, 0)
+                        finish()
+                    }
                 }
             } catch (e: Exception) {
                 runOnUiThread {

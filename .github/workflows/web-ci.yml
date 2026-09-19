@@ -14,6 +14,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'next.config.ts'
+      - 'tsconfig.json'
       - 'netlify.toml'
       - '.github/workflows/web-ci.yml'
 
