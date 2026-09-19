@@ -7,6 +7,7 @@ const supabaseClient = await readFile(new URL("../app/portal/supabase.ts", impor
 const css = await readFile(new URL("../app/portal/portal.css", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260820230000_restore_operations_portal.sql", import.meta.url), "utf8");
 const publicHtml = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+const staffDirectoryFunction = await readFile(new URL("../supabase/functions/staff-login-directory/index.ts", import.meta.url), "utf8");
 
 test("restores the original staff operations workflow", () => {
   for (const feature of [
@@ -60,7 +61,7 @@ test("keeps staff and administrator capabilities separated", () => {
 
 test("keeps recovery, receipts, discounts, and private photos functional", () => {
   assert.ok(portal.includes("resetPasswordForEmail"));
-  assert.ok(portal.includes("request_staff_password_recovery"));
+  assert.ok(staffDirectoryFunction.includes("request_staff_password_recovery"));
   assert.ok(portal.includes("Use only the newest link"));
   assert.ok(portal.includes("createSignedUrl"));
   assert.ok(portal.includes("staff_update_order"));
