@@ -337,6 +337,7 @@ class MainActivity : AppCompatActivity() {
         out.write(data)
         out.write(byteArrayOf(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30))
         out.write(0x0A)
+        writeAsciiLine(out, WEBSITE_DISPLAY)
         out.write(byteArrayOf(0x1B, 0x61, 0x00))
     }
 
