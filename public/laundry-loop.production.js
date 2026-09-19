@@ -846,4 +846,28 @@
   window.__LAUNDRY_PRODUCTION_READY__ = true;
   loadPublicConfiguration().catch((error) => console.warn('Public configuration refresh failed.', error.message));
   restoreCustomerSession();
+
+  (function openTrackedOrderFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const code = (params.get('track') || params.get('code') || '').trim().toUpperCase();
+    if (!code) return;
+
+    const open = () => {
+      const input = document.getElementById('track-code-input');
+      if (!input) return;
+      input.value = code;
+      if (typeof window.openTrackModal === 'function') window.openTrackModal();
+      else {
+        const modal = document.getElementById('track-modal');
+        if (modal) {
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+        }
+      }
+      window.trackOrder?.();
+    };
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', open, { once: true });
+    else window.setTimeout(open, 0);
+  })();
 })();
