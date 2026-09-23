@@ -37,7 +37,7 @@ begin
 
   select * into v_existing from public.orders where tracking_code = v_code limit 1;
   if v_existing.id is not null then
-    if coalesce(v_existing.paper_reference, '') <> 'APP:' || v_code then
+    if coalesce(v_existing.paper_reference, '') <> ('APP:' || v_code) then
       raise exception 'Tracking code already exists';
     end if;
     return to_jsonb(v_existing)-'photo_upload_token_hash'-'photo_upload_expires_at';
