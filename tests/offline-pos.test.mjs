@@ -8,6 +8,7 @@ const worker = fs.readFileSync("public/sw.js", "utf8");
 const manifest = fs.readFileSync("android-print-bridge/app/src/main/AndroidManifest.xml", "utf8");
 const posActivity = fs.readFileSync("android-print-bridge/app/src/main/java/com/laundryloop/printbridge/PosActivity.kt", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260923133000_offline_pos_sync.sql", "utf8");
+const securityMigration = fs.readFileSync("supabase/migrations/20260923193500_security_gate_hardening.sql", "utf8");
 
 test("offline POS queue is wired into staff order creation", () => {
   assert.match(portal, /saveCurrentPosOffline/);
@@ -20,6 +21,8 @@ test("offline order tracking codes are stable and queued locally", () => {
   assert.match(offline, /const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"/);
   assert.match(offline, /queueOfflineOrder/);
   assert.match(offline, /removeQueuedOfflineOrder/);
+  assert.match(offline, /14 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(offline, /slice\(0, 100\)/);
 });
 
 test("staff shell is cacheable for offline relaunch", () => {
@@ -27,16 +30,31 @@ test("staff shell is cacheable for offline relaunch", () => {
   assert.match(worker, /request\.mode === "navigate"/);
 });
 
-test("Android APK launches POS and preserves native printer bridge", () => {
+test("Android APK launches a locked-down POS with internal printing", () => {
   assert.match(manifest, /android:name="\.PosActivity"/);
   assert.match(manifest, /android\.intent\.category\.LAUNCHER/);
-  assert.match(manifest, /laundryloop-print/);
-  assert.match(posActivity, /LaundryLoopPOS\/1\.0/);
-  assert.match(posActivity, /thelaundryloop\.net\/staff\?app=1/);
+  assert.match(manifest, /android:name="\.MainActivity"[\s\S]*android:exported="false"/);
+  assert.match(manifest, /android:usesCleartextTraffic="false"/);
+  assert.match(manifest, /android:allowBackup="false"/);
+  assert.doesNotMatch(manifest, /android:scheme="laundryloop-print"/);
+  assert.match(posActivity, /LaundryLoopPOS\/2\.1/);
+  assert.match(posActivity, /FLAG_SECURE/);
+  assert.match(posActivity, /createConfirmDeviceCredentialIntent/);
+  assert.match(posActivity, /LaundryLoopNative/);
+  assert.match(posActivity, /MIXED_CONTENT_NEVER_ALLOW/);
 });
 
 test("offline sync RPC keeps printed tracking code", () => {
   assert.match(migration, /staff_sync_offline_order/);
   assert.match(migration, /tracking_code = v_code/);
-  assert.match(migration, /paper_reference = 'APP:' \\|\\| v_code/);
+  assert.match(migration, /paper_reference = 'APP:' \|\| v_code/);
+});
+
+test("security migration enforces backend authorization", () => {
+  assert.match(securityMigration, /staff_login_failures/);
+  assert.match(securityMigration, /failed_attempts >= 0/);
+  assert.match(securityMigration, /v_role not in \('manager','admin'\)/);
+  assert.match(securityMigration, /when v_role = 'staff' then 1/);
+  assert.match(securityMigration, /revoke insert, update, delete on table public\.orders from authenticated/);
+  assert.match(securityMigration, /update storage\.buckets set public = false where id = 'receipts'/);
 });
