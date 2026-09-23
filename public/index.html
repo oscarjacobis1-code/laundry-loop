@@ -1678,7 +1678,7 @@
       const { data: row, error } = await sbClient.rpc('track_public_order', { p_tracking_code: code });
       if (error || !row) throw error || new Error('Not found');
 
-      const { calculate, visualStages } = await import('./tracking-progress.js?v=20260923-3');
+      const { calculate, visualStages } = await import('./tracking-progress.js?v=20260923-4');
       const tracking = calculate(row);
       const status = tracking.status;
       const progress = tracking.progress;
@@ -1795,7 +1795,7 @@
           <div class="tracking-note-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M26 6C15 6 8 11 7 22c5 1 10-1 13-5-3 4-7 7-12 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div>${row.express
             ? 'Express timing follows the selected turnaround window and remains subject to machine availability. You will receive an update when your order is ready.'
-            : 'In some cases, our staff may have your laundry ready, folded and done before 48 hours. You will receive an update when it is ready for pickup.'}</div>
+            : 'The gauge estimates movement within the current staff-confirmed stage; pickup time is calculated separately. In some cases, your laundry may be ready before 48 hours. You will receive an update when it is ready for pickup.'}</div>
         </div>
 
         <div class="tracking-wave tracking-wave-left"></div>
