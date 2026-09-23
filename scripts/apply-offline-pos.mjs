@@ -261,7 +261,7 @@ replaceOnce(
 );
 
 replaceOnce(
-  '<span className="live-dot">Secure · Live</span>',
+  '<span className="live-dot">Live</span>',
   '<span className={isOnline ? "live-dot" : "live-dot offline"}>{isOnline ? "Secure · Live" : "Offline · " + pendingOffline + " pending"}</span>',
   "connection indicator",
 );
