@@ -3,6 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = "https://coohutrnqcxjhkxprama.supabase.co";
 const publishableKey = "sb_publishable_WwvZpvMkiHM3YOLhwty85g_wGZKQ84e";
 
+function portalAuthStorage() {
+  if (typeof window === "undefined") return undefined;
+  const isAndroidPos = /LaundryLoopPOS/i.test(window.navigator.userAgent)
+    || new URLSearchParams(window.location.search).get("app") === "1";
+  return isAndroidPos ? window.localStorage : window.sessionStorage;
+}
+
 export function createPortalSupabase(portal: "admin" | "staff") {
   return createClient(supabaseUrl, publishableKey, {
     auth: {
@@ -10,7 +17,7 @@ export function createPortalSupabase(portal: "admin" | "staff") {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey: `laundry-loop-${portal}-auth-v2`,
-      storage: typeof window === "undefined" ? undefined : window.sessionStorage,
+      storage: portalAuthStorage(),
     },
   });
 }
@@ -28,9 +35,6 @@ async function readApiError(response: Response) {
   return body.error_description || body.message || body.msg || "The attendance request could not be completed.";
 }
 
-// Attendance is intentionally authenticated with a one-use token instead of a
-// second GoTrueClient. This keeps it isolated from the persistent staff/admin
-// portal sessions and avoids multiple auth clients competing in one tab.
 export async function runAttendanceAction(email: string, password: string, mode: AttendanceMode) {
   const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
