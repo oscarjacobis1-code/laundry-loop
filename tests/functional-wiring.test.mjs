@@ -198,10 +198,15 @@ test("public tracker matches the branded semi-circle dashboard and has one owner
   assert.match(publicHtml, /Ready<br>for Pickup/);
   assert.match(publicHtml, /Staff confirmed:/);
   assert.match(publicHtml, /Estimated Pickup/);
-  assert.match(publicHtml, /tracking-progress\.js\?v=20260923-3/);
+  assert.match(publicHtml, /tracking-progress\\.js\\?v=20260923-4/);
   assert.match(trackingCss, /\.tracking-arc-progress/);
   assert.match(trackingCss, /\.stage-processing/);
   assert.match(trackingCss, /\.tracking-info-row/);
   assert.doesNotMatch(production, /Upgrade the existing tracking dialog/);
   assert.doesNotMatch(production, /window\.trackOrder = async function/);
+});
+
+
+test("tracker explains that stage progress and pickup ETA are separate", () => {
+  assert.match(publicHtml, /pickup time is calculated separately/);
 });
