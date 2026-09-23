@@ -252,7 +252,7 @@ replaceOnce(
 '    } else if (error) {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
 '      setPendingOffline(queuedOfflineCount());',
-'      setPosMessage("The order was not saved: " + error.message);',
+'      setPosMessage(`The order was not saved: ${error.message}`);',
 '    } else {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
 '      setPendingOffline(queuedOfflineCount());'
