@@ -198,7 +198,7 @@ test("public tracker matches the branded semi-circle dashboard and has one owner
   assert.match(publicHtml, /Ready<br>for Pickup/);
   assert.match(publicHtml, /Staff confirmed:/);
   assert.match(publicHtml, /Estimated Pickup/);
-  assert.match(publicHtml, /tracking-progress\\.js\\?v=20260923-4/);
+  assert.match(publicHtml, /tracking-progress\.js\?v=20260923-4/);
   assert.match(trackingCss, /\.tracking-arc-progress/);
   assert.match(trackingCss, /\.stage-processing/);
   assert.match(trackingCss, /\.tracking-info-row/);
