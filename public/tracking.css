@@ -253,6 +253,17 @@
   font-size:14px;
   line-height:1.45;
 }
+.tracking-confirmed{
+  display:inline-flex;
+  margin-top:10px;
+  padding:5px 9px;
+  border-radius:999px;
+  background:#fff;
+  border:1px solid #cfe8f8;
+  color:#58708a;
+  font:600 10px/1 'IBM Plex Mono',monospace;
+  letter-spacing:.02em;
+}
 .tracking-info-row{
   display:grid;
   grid-template-columns:repeat(3,1fr);
