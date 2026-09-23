@@ -15,7 +15,7 @@ create or replace function public.staff_sync_offline_order(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_existing public.orders;
