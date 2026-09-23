@@ -135,9 +135,7 @@ const syncBlock = `  const syncQueuedOfflineOrders = useCallback(async () => {
 replaceOnce(insertBeforeValidate, syncBlock + insertBeforeValidate, "offline sync block");
 
 const submitMarker = '  async function submitPos(event: FormEvent) {';
-const helper = `  function saveCurrentPosOffline(items: Array<{ service: Service; qty: number }>) {
-    const createdAt = new Date().toISOString();
-    const trackingCode = createOfflineTrackingCode(new Date(createdAt));
+const helper = `  function saveCurrentPosOffline(items: Array<{ service: Service; qty: number }>, trackingCode = createOfflineTrackingCode(), createdAt = new Date().toISOString(), present = true) {
     const orderItems: OrderItem[] = items.map(({ service, qty }) => ({
       service_id: service.id,
       label: service.name,
@@ -190,8 +188,12 @@ const helper = `  function saveCurrentPosOffline(items: Array<{ service: Service
       localOrder: localOrder as unknown as Record<string, unknown>,
     });
 
+    setPendingOffline(queuedOfflineCount());
+    if (!present) return localOrder;
+
     setOrders((current) => {
-      const next = [localOrder, ...current];
+      const withoutDuplicate = current.filter((order) => order.tracking_code !== trackingCode);
+      const next = [localOrder, ...withoutDuplicate];
       cacheOrders(next as unknown as Record<string, unknown>[]);
       return next;
     });
@@ -200,9 +202,9 @@ const helper = `  function saveCurrentPosOffline(items: Array<{ service: Service
     setPos(emptyPos);
     setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);
     setSelectedOrder(localOrder);
-    setPendingOffline(queuedOfflineCount());
     setView("orders");
     setMessage(`Order ${trackingCode} saved OFFLINE. Receipt is ready to print; it will sync automatically when internet returns.`);
+    return localOrder;
   }
 
 `;
@@ -211,14 +213,33 @@ replaceOnce(submitMarker, helper + submitMarker, "offline order helper");
 const rpcStart = '    const { data, error } = await supabase.rpc("staff_create_order", {';
 replaceOnce(
   rpcStart,
-  '    if (!navigator.onLine) { saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>); setBusy(false); posSubmitLock.current = false; return; }\n' + rpcStart,
-  "offline RPC bypass",
+  `    const appTrackingCode = isLaundryLoopApp() ? createOfflineTrackingCode() : null;
+    const appCreatedAt = new Date().toISOString();
+    if (appTrackingCode) saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode, appCreatedAt, false);
+    if (!navigator.onLine) {
+      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode ?? createOfflineTrackingCode(), appCreatedAt, true);
+      setBusy(false); posSubmitLock.current = false; return;
+    }
+    const { data, error } = appTrackingCode
+      ? await supabase.rpc("staff_sync_offline_order", {
+          p_client_tracking_code: appTrackingCode,
+          p_name: pos.name.trim(),
+          p_phone: phoneDigits(pos.phone),
+          p_items: items.map((row) => ({ label: row.service!.name, qty: row.qty })),
+          p_notes: pos.notes.trim(),
+          p_payment: { method: pos.paymentMethod, status: pos.paymentStatus, reference: pos.paymentReference.trim() || null, express: pos.express, ...(pos.paymentMethod === "Cash" ? { cash_received: cashReceived, change_due: changeDue } : {}) },
+          p_discount_gyd: profile?.role === "staff" ? 0 : posDiscount,
+          p_original_transaction_at: appCreatedAt,
+          p_express: pos.express,
+        })
+      : await supabase.rpc("staff_create_order", {`,
+  "idempotent APK order RPC",
 );
 
 replaceOnce(
   '    if (error) setPosMessage(`The order was not saved: ${error.message}`);\n    else {',
-  '    if (error && /fetch|network|connection|offline/i.test(error.message || "")) {\n      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>);\n    } else if (error) setPosMessage(`The order was not saved: ${error.message}`);\n    else {',
-  "network failure fallback",
+  '    if (error && appTrackingCode && /fetch|network|connection|offline/i.test(error.message || "")) {\n      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode, appCreatedAt, true);\n    } else if (error) {\n      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);\n      setPendingOffline(queuedOfflineCount());\n      setPosMessage(`The order was not saved: ${error.message}`);\n    } else {\n      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);\n      setPendingOffline(queuedOfflineCount());',
+  "idempotent network failure fallback",
 );
 
 replaceOnce(
