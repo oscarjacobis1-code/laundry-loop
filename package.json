@@ -6,12 +6,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "prepare:pos": "node scripts/apply-pos-cash-tender.mjs && node scripts/persist-cash-tender.mjs",
+    "prepare:pos": "node scripts/apply-pos-cash-tender.mjs && node scripts/persist-cash-tender.mjs && node scripts/apply-offline-pos.mjs",
     "dev": "npm run prepare:pos && next dev",
     "build:public-css": "node scripts/build-public-css.mjs",
     "build": "npm run prepare:pos && npm run build:public-css && next build",
     "start": "next start",
-    "test": "npm run prepare:pos && node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs tests/tracking-progress.test.mjs",
+    "test": "npm run prepare:pos && node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs tests/tracking-progress.test.mjs tests/offline-pos.test.mjs",
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {
