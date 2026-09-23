@@ -11,7 +11,7 @@
     "build:public-css": "node scripts/build-public-css.mjs",
     "build": "npm run prepare:pos && npm run build:public-css && next build",
     "start": "next start",
-    "test": "npm run prepare:pos && node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs",
+    "test": "npm run prepare:pos && node --test tests/functional-wiring.test.mjs tests/portal-parity.test.mjs tests/printing-bridge.test.mjs tests/tracking-progress.test.mjs",
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {

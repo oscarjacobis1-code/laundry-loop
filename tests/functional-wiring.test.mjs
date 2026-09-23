@@ -76,7 +76,7 @@ test("supervisor POS discounts support fixed amounts and percentages", () => {
   assert.match(portal, /type DiscountMode = "amount" \| "percent"/);
   assert.match(portal, /pos\.discountMode === "percent"/);
   assert.match(portal, /p_discount_gyd: profile\?\.role === "staff" \? 0 : posDiscount/);
-  assert.match(portal, /<option value="percent">Percentage<\/option>/);
+  assert.match(portal, /<option value="percent">Percentage \(%\)<\/option>/);
   assert.match(posInventoryMigration, /v_role not in \('manager', 'admin'\)/);
   assert.match(posInventoryMigration, /Discount cannot exceed subtotal/);
 });

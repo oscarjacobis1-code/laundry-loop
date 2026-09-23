@@ -5,8 +5,6 @@
   const CUSTOMER_IDLE_MS = 20 * 60 * 1000;
   let customerIdleTimer = null;
   const PREVIEW_DEMO = location.hostname === 'terminal.local';
-  const PREVIEW_STAFF_EMAIL = 'staff@laundryloop.preview';
-  const PREVIEW_STAFF_PASSWORD = 'Preview2026!';
   const PHOTO_BUCKET = 'scale-photos';
   const PHOTO_MAX_INPUT_BYTES = 20 * 1024 * 1024;
   const PHOTO_TARGET_BYTES = 900 * 1024;
@@ -558,18 +556,79 @@
     }
   };
 
+  // Upgrade the existing tracking dialog without copying the site's contact/payment HTML.
+  const trackingModal = document.getElementById('track-modal');
+  if (trackingModal) {
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = '/tracking.css';
+    document.head.appendChild(style);
+    const panel = trackingModal.querySelector('.panel');
+    panel.className = 'panel tracking-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'tracking-title');
+    panel.innerHTML = `<button onclick="closeModal('track-modal')" class="tracking-close" aria-label="Close tracking">&times;</button>
+      <div class="tracking-heading"><img src="/laundry-loop-logo.jpg" alt="The Laundry Loop" class="tracking-logo"><div><span class="eyebrow">The Laundry Loop</span><h3 id="tracking-title" class="font-display">Track your order</h3><p>See where your laundry is in the loop.</p></div></div>
+      <form class="tracking-search" onsubmit="event.preventDefault(); trackOrder()"><label for="track-code-input" class="field-label">Order code</label><div class="tracking-search-row"><input type="text" id="track-code-input" placeholder="e.g. K7M2Q9" class="field font-mono uppercase" maxlength="24" autocomplete="off" required><button type="submit" class="btn btn-primary">Track order</button></div></form>
+      <div id="track-result" aria-live="polite"></div>`;
+  }
+
   window.trackOrder = async function () {
     const code = document.getElementById('track-code-input').value.trim().toUpperCase();
     const resultEl = document.getElementById('track-result');
+    if (!/^[A-Z0-9-]{4,24}$/.test(code)) {
+      resultEl.innerHTML = '<p class="tracking-error">Enter the order code from your receipt.</p>';
+      return;
+    }
     try {
       const row = await rpc('track_public_order', { p_tracking_code: code });
       if (!row) throw new Error('Not found');
       const order = mapOrder(row);
-      resultEl.innerHTML = `<div class="ticket p-5 mt-4"><div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><div class="ticket-code text-base">${order.code}</div><button type="button" onclick="copyCode('${order.code}', this)" class="text-[10px] text-stone-500">Copy</button></div>${paymentChip(order.payment)}</div><div class="my-2">${statusChip(order.status)}</div><div class="ticket-divider"></div><div class="flex justify-between text-[13px]"><span style="color:var(--faint);">Qty/Weight</span><span class="font-medium">${order.weight}</span></div><div class="flex justify-between text-[13px] mt-1"><span style="color:var(--faint);">Total</span><span class="font-medium">${money(order.total)}</span></div></div>`;
+      const { calculate, stages } = await import('./tracking-progress.js');
+      const tracking = calculate(row);
+      const status = tracking.status;
+      const messages = {
+        'Received': 'Your laundry is in the loop. Our team has received your order and will prepare it for washing.',
+        'Washing': 'Your clothes are being washed. We are working to get them fresh, folded and done.',
+        'Drying': 'Your laundry is drying and moving closer to the finishing line.',
+        'Ready for Pick-Up': 'Fresh. Folded. Done. Your order is ready for pickup!',
+        'Picked Up (Archived)': 'Your order has been picked up. Thanks for choosing The Laundry Loop.',
+        'Cancelled/Refunded': 'This order has been cancelled. Please contact our team if you need help.'
+      };
+      const labels = { 'Received': 'Received', 'Washing': 'Washing', 'Drying': 'Drying', 'Ready for Pick-Up': 'Ready' };
+      const stage = stages.indexOf(status);
+      const progress = tracking.progress;
+      const circumference = 2 * Math.PI * 120;
+      const timeFormat = new Intl.DateTimeFormat('en-GY', { timeZone: tracking.zone, dateStyle: 'medium', timeStyle: 'short' });
+      const updated = Number.isFinite(tracking.lastUpdated) ? timeFormat.format(tracking.lastUpdated) : 'Not available';
+      const eta = progress === 100 ? (status === 'Ready for Pick-Up' ? 'Ready now' : 'Completed')
+        : status === 'Cancelled/Refunded' ? 'Not applicable'
+        : tracking.eta && Date.now() > tracking.eta.getTime() ? 'Past usual estimate — awaiting staff update'
+        : tracking.eta ? `Typically by ${timeFormat.format(tracking.eta)}` : 'Ask our team for an update';
+      const dial = progress === null ? '<p class="tracking-error">Progress is unavailable for this order.</p>' : `
+        <div class="tracking-gauge" role="img" aria-label="Estimated progress ${progress} percent; confirmed status ${escapeHtml(status)}">
+          <svg viewBox="0 0 300 300" aria-hidden="true"><circle class="tracking-gauge-track" cx="150" cy="150" r="120"/><circle class="tracking-gauge-fill" cx="150" cy="150" r="120" stroke-dasharray="${(circumference * progress / 100).toFixed(2)} ${circumference.toFixed(2)}"/></svg>
+          <div class="tracking-pointer" style="--pointer-angle:${progress * 3.6}deg" aria-hidden="true"><div class="tracking-pointer-mark" title="Infinity loop"><svg viewBox="0 0 40 29"><path d="M20 10V8a4 4 0 1 1 4 4l-4 3L3 25h34L20 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span>∞</span></div></div>
+          <div class="tracking-gauge-center"><strong>${progress}%</strong><span>Estimated progress</span></div>
+        </div>`;
+      resultEl.innerHTML = `<div class="tracking-result">
+        <div class="tracking-result-header"><span>Order <strong>${escapeHtml(order.code)}</strong></span><span>Staff status: <strong>${escapeHtml(status)}</strong></span></div>
+        ${dial}
+        <div class="tracking-stages" aria-label="Confirmed laundry stages">${stages.map((step, i) => `<div class="tracking-stage ${i < stage || (stage < 0 && progress === 100) ? 'done' : i === stage ? 'current' : ''}">${labels[step]}</div>`).join('')}</div>
+        <div class="tracking-story"><h4>${escapeHtml(status)}</h4><p>${messages[status] || 'Please contact our team for an update on your order.'}</p></div>
+        <div class="tracking-footer"><div>Staff status updated<strong>${updated}</strong></div><div class="tracking-eta">Estimated pickup<strong>${escapeHtml(eta)}</strong></div></div>
+        <p class="tracking-note">The percentage is an estimate between staff-confirmed stages. ${row.express ? 'Express timing depends on when we receive your order and machine availability.' : 'In some cases, our staff may have your laundry folded and done before 48 hours.'} You will receive an update when it is ready for pickup.</p>
+      </div>`;
     } catch {
-      resultEl.innerHTML = `<p class="text-[12px] mt-4 text-red-700">No order found with code ${code}.</p>`;
+      resultEl.innerHTML = '<p class="tracking-error">We could not find that order right now. Check the code and try again.</p>';
     }
   };
+  // Re-read staff-confirmed status while the customer keeps the tracking dialog open.
+  setInterval(() => {
+    const modal = document.getElementById('track-modal');
+    if (modal && !modal.classList.contains('hidden') && document.querySelector('#track-result .tracking-result')) window.trackOrder();
+  }, 60000);
 
   if (false) {
   window.submitStaffLogin = async function () {
@@ -578,16 +637,6 @@
     const errorBox = document.getElementById('staff-login-error');
     errorBox.classList.add('hidden');
     try {
-      if (PREVIEW_DEMO && email === PREVIEW_STAFF_EMAIL && password === PREVIEW_STAFF_PASSWORD) {
-        IS_STAFF_LOGGED_IN = true;
-        ORDERS = JSON.parse(JSON.stringify(SEED_ORDERS));
-        ARCHIVED_ORDERS = [];
-        renderStaffTable();
-        await loadStaffInsights();
-        closeModal('staff-login-modal');
-        showView('view-staff');
-        return;
-      }
       const { error } = await sbClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
       const { data: profile, error: profileError } = await sbClient.from('staff_profiles').select('role, display_name, active').single();
