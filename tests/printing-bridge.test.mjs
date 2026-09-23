@@ -20,12 +20,13 @@ test("Android receipt taps are captured before React can enter browser PDF print
   assert.match(bridge, /window\.__LAUNDRY_DIRECT_PRINT_READY__ = true/);
 });
 
-test("direct bridge launches the installed Android app with safe receipt metadata", () => {
-  assert.match(bridge, /const packageName = "com\.laundryloop\.printbridge"/);
-  assert.match(bridge, /package=\$\{packageName\}/);
+test("direct bridge uses only the in-app native printer interface", () => {
+  assert.match(bridge, /LaundryLoopNative/);
+  assert.match(bridge, /JSON\.stringify/);
   assert.match(bridge, /params\.set\("order", meta\.order\)/);
   assert.match(bridge, /params\.set\("payment", meta\.payment\)/);
   assert.match(bridge, /suppress_drawer/);
+  assert.doesNotMatch(bridge, /intent:\/\/print/);
 });
 
 test("supervisor service management requires current password", () => {
@@ -36,9 +37,11 @@ test("supervisor service management requires current password", () => {
   assert.match(supervisorGate, /stopImmediatePropagation/);
 });
 
-test("Android app exposes only the direct receipt intent and no PrintService", () => {
-  assert.match(manifest, /android:scheme="laundryloop-print" android:host="print"/);
-  assert.doesNotMatch(manifest, /android\.printservice\.PrintService/);
+test("Android app keeps printer activity internal and blocks cleartext and backups", () => {
+  assert.match(manifest, /android:name="\.MainActivity"[\s\S]*android:exported="false"/);
+  assert.match(manifest, /android:usesCleartextTraffic="false"/);
+  assert.match(manifest, /android:allowBackup="false"/);
+  assert.doesNotMatch(manifest, /android:scheme="laundryloop-print"/);
   assert.doesNotMatch(manifest, /BIND_PRINT_SERVICE/);
 });
 

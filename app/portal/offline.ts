@@ -78,7 +78,14 @@ export function readCachedServices(): OfflineService[] {
 }
 
 export function cacheOrders(orders: Record<string, unknown>[]) {
-  writeJson(ordersKey, { value: orders.slice(0, 500), savedAt: new Date().toISOString() });
+  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const recent = orders
+    .filter((order) => {
+      const created = Date.parse(String(order.created_at ?? ""));
+      return Number.isFinite(created) ? created >= cutoff : true;
+    })
+    .slice(0, 100);
+  writeJson(ordersKey, { value: recent, savedAt: new Date().toISOString() });
 }
 
 export function readCachedOrders(): Record<string, unknown>[] {

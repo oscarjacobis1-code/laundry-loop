@@ -9,6 +9,7 @@ declare global {
   interface Window {
     __LAUNDRY_DIRECT_PRINT_READY__?: boolean;
     __LAUNDRY_DIRECT_PRINT__?: (mode: "receipt" | "tag") => boolean;
+    LaundryLoopNative?: { print: (payload: string) => void };
   }
 }
 
@@ -61,8 +62,18 @@ export default function AndroidPrintBridge() {
         if (/picked up|archived/i.test(meta.status)) params.set("suppress_drawer", "1");
       }
 
-      const target = `intent://print?${params.toString()}#Intent;scheme=laundryloop-print;package=${packageName};end`;
-      window.location.assign(target);
+      if (!window.LaundryLoopNative?.print) {
+        window.alert("Laundry Loop native printing is unavailable. Reopen the POS app and try again.");
+        return false;
+      }
+
+      window.LaundryLoopNative.print(JSON.stringify({
+        mode,
+        text,
+        order: params.get("order") ?? "",
+        payment: params.get("payment") ?? "",
+        suppress_drawer: params.get("suppress_drawer") === "1",
+      }));
       return true;
     }
 
