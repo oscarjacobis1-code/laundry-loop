@@ -67,9 +67,8 @@ Deno.serve(async (req) => {
   if (action === "login") {
     const { data: guard, error: guardError } = await admin.rpc("staff_login_guard", { p_user_id: userId });
     if (guardError) return json({ error: "Login protection is temporarily unavailable." }, 503, cors);
-    if (guard && guard.allowed === false) {
-      return json({ error: "Too many unsuccessful attempts. Try again later." }, 429, cors);
-    }
+    const delayMs = Math.max(0, Math.min(Number(guard?.delay_ms ?? 0), 5000));
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
 
     const password = String(body?.password ?? "");
     const { data, error } = await anon.auth.signInWithPassword({ email, password });
@@ -87,9 +86,8 @@ Deno.serve(async (req) => {
   if (action === "attendance") {
     const { data: guard, error: guardError } = await admin.rpc("staff_login_guard", { p_user_id: userId });
     if (guardError) return json({ error: "Login protection is temporarily unavailable." }, 503, cors);
-    if (guard && guard.allowed === false) {
-      return json({ error: "Too many unsuccessful attempts. Try again later." }, 429, cors);
-    }
+    const delayMs = Math.max(0, Math.min(Number(guard?.delay_ms ?? 0), 5000));
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
 
     const password = String(body?.password ?? "");
     const mode = body?.mode === "out" ? "out" : "in";
