@@ -15,7 +15,7 @@ function replaceOnce(from, to, label) {
 
 replaceOnce(
   'import { createPortalSupabase } from "./supabase";',
-  'import { createPortalSupabase } from "./supabase";\nimport { cacheOrders, cacheProfile, cacheServices, createOfflineTrackingCode, isLaundryLoopApp, queuedOfflineCount, queueOfflineOrder, readCachedOrders, readCachedProfile, readCachedServices, readQueuedOfflineOrders, registerOfflineWorker, removeQueuedOfflineOrder } from "./offline";\nconst LL_OFFLINE_POS_PATCH = true;',
+  'import { createPortalSupabase } from "./supabase";\nimport AndroidPrintBridge from "./AndroidPrintBridge";\nimport { cacheOrders, cacheProfile, cacheServices, createOfflineTrackingCode, isLaundryLoopApp, queuedOfflineCount, queueOfflineOrder, readCachedOrders, readCachedProfile, readCachedServices, readQueuedOfflineOrders, registerOfflineWorker, removeQueuedOfflineOrder } from "./offline";\n// LL_OFFLINE_POS_PATCH',
   "offline imports",
 );
 
