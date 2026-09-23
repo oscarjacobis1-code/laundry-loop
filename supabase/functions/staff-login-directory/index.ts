@@ -53,9 +53,19 @@ Deno.serve(async (req) => {
   if (userError || !email) return json({ error: "This staff login is not configured correctly." }, 400);
 
   if (action === "login") {
+    const { data: guard, error: guardError } = await admin.rpc("staff_login_guard", { p_user_id: userId });
+    if (guardError) return json({ error: "Login protection is temporarily unavailable." }, 503);
+    if (guard && guard.allowed === false) {
+      return json({ error: "Too many unsuccessful attempts. Try again later." }, 429);
+    }
+
     const password = String(body?.password ?? "");
     const { data, error } = await anon.auth.signInWithPassword({ email, password });
-    if (error || !data.session) return json({ error: "Password is incorrect." }, 401);
+    if (error || !data.session) {
+      await admin.rpc("staff_login_record_failure", { p_user_id: userId }).catch(() => undefined);
+      return json({ error: "Password is incorrect." }, 401);
+    }
+    await admin.rpc("staff_login_clear_failures", { p_user_id: userId }).catch(() => undefined);
     return json({
       session: { access_token: data.session.access_token, refresh_token: data.session.refresh_token },
       user_id: data.user.id,
@@ -63,10 +73,20 @@ Deno.serve(async (req) => {
   }
 
   if (action === "attendance") {
+    const { data: guard, error: guardError } = await admin.rpc("staff_login_guard", { p_user_id: userId });
+    if (guardError) return json({ error: "Login protection is temporarily unavailable." }, 503);
+    if (guard && guard.allowed === false) {
+      return json({ error: "Too many unsuccessful attempts. Try again later." }, 429);
+    }
+
     const password = String(body?.password ?? "");
     const mode = body?.mode === "out" ? "out" : "in";
     const { data, error } = await anon.auth.signInWithPassword({ email, password });
-    if (error || !data.session) return json({ error: "Password is incorrect." }, 401);
+    if (error || !data.session) {
+      await admin.rpc("staff_login_record_failure", { p_user_id: userId }).catch(() => undefined);
+      return json({ error: "Password is incorrect." }, 401);
+    }
+    await admin.rpc("staff_login_clear_failures", { p_user_id: userId }).catch(() => undefined);
 
     const staffClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
