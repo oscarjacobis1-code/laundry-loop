@@ -17,7 +17,7 @@ test("offline POS queue is wired into staff order creation", () => {
 });
 
 test("offline order tracking codes are stable and queued locally", () => {
-  assert.match(offline, /LL-OFF-/);
+  assert.match(offline, /const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"/);
   assert.match(offline, /queueOfflineOrder/);
   assert.match(offline, /removeQueuedOfflineOrder/);
 });
@@ -38,5 +38,5 @@ test("Android APK launches POS and preserves native printer bridge", () => {
 test("offline sync RPC keeps printed tracking code", () => {
   assert.match(migration, /staff_sync_offline_order/);
   assert.match(migration, /tracking_code = v_code/);
-  assert.match(migration, /entry_source = 'offline_sync'/);
+  assert.match(migration, /paper_reference = 'APP:' \\|\\| v_code/);
 });
