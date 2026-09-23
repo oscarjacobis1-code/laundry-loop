@@ -13,8 +13,8 @@ android {
         applicationId = "com.laundryloop.printbridge"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.20.4"
+        versionCode = 26
+        versionName = "2.0.0"
     }
 
     if (!releaseKeystorePath.isNullOrBlank()) {

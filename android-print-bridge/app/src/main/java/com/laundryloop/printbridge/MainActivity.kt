@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
@@ -30,7 +31,6 @@ class MainActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
             window.decorView.alpha = 0f
             status = TextView(this)
-            moveTaskToBack(true)
             handleIntent(intent)
         } else {
             buildUi()
@@ -43,7 +43,6 @@ class MainActivity : AppCompatActivity() {
         if (isPrintIntent(intent)) {
             overridePendingTransition(0, 0)
             window.decorView.alpha = 0f
-            moveTaskToBack(true)
         }
         handleIntent(intent)
     }
@@ -251,7 +250,13 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    status.text = "Printer error: ${e.message ?: "connection failed"}"
+                    val errorMessage = "Printer error: ${e.message ?: "connection failed"}"
+                    status.text = errorMessage
+                    Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+                    if (finishWhenDone) {
+                        overridePendingTransition(0, 0)
+                        finish()
+                    }
                 }
             }
         }
