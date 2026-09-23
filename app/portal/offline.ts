@@ -86,14 +86,13 @@ export function readCachedOrders(): Record<string, unknown>[] {
   return Array.isArray(cached?.value) ? cached!.value! : [];
 }
 
-export function createOfflineTrackingCode(now = new Date()) {
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const bytes = new Uint8Array(4);
+export function createOfflineTrackingCode() {
+  // Existing Laundry Loop tracking codes allow A-Z and 2-9 only, 6-10 chars.
+  // Prefix with P so staff can recognize APK-created POS transactions.
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
-  const suffix = Array.from(bytes, (value) => (value % 36).toString(36).toUpperCase()).join("").padEnd(6, "0").slice(0, 6);
-  return `LL-OFF-${yy}${mm}${dd}-${suffix}`;
+  return "P" + Array.from(bytes, (value) => alphabet[value % alphabet.length]).join("");
 }
 
 export function queueOfflineOrder(order: OfflineOrderPayload) {
