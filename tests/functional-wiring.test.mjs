@@ -7,6 +7,7 @@ const publicHtml = await readFile(new URL("../public/index.html", import.meta.ur
 const production = await readFile(new URL("../public/laundry-loop.production.js", import.meta.url), "utf8");
 const portal = await readFile(new URL("../app/portal/Portal.tsx", import.meta.url), "utf8");
 const portalCss = await readFile(new URL("../app/portal/portal.css", import.meta.url), "utf8");
+const trackingCss = await readFile(new URL("../public/tracking.css", import.meta.url), "utf8");
 const cmsMigration = await readFile(new URL("../supabase/migrations/20260823030000_site_content_cms.sql", import.meta.url), "utf8");
 const posInventoryMigration = await readFile(new URL("../supabase/migrations/20260830010000_pos_discounts_and_inventory_creation.sql", import.meta.url), "utf8");
 const subscriptionMigration = await readFile(new URL("../supabase/migrations/20260830020000_subscription_accounts_and_loop_credits.sql", import.meta.url), "utf8");
@@ -188,4 +189,19 @@ test("weight quantity input does not clamp partial typing", async () => {
   assert.ok(guard.includes('input.min = "0.5"'));
   assert.ok(!guard.includes('current > 0 && current < MIN_WEIGHT_LB'));
   assert.ok(guard.includes('data' ) || guard.includes('dataset.minimumWeightTotal'));
+});
+
+
+test("public tracker matches the branded semi-circle dashboard and has one owner", () => {
+  assert.match(publicHtml, /Track Your Order/);
+  assert.match(publicHtml, /tracking-arc-wrap/);
+  assert.match(publicHtml, /Ready<br>for Pickup/);
+  assert.match(publicHtml, /Staff confirmed:/);
+  assert.match(publicHtml, /Estimated Pickup/);
+  assert.match(publicHtml, /tracking-progress\.js\?v=20260923-3/);
+  assert.match(trackingCss, /\.tracking-arc-progress/);
+  assert.match(trackingCss, /\.stage-processing/);
+  assert.match(trackingCss, /\.tracking-info-row/);
+  assert.doesNotMatch(production, /Upgrade the existing tracking dialog/);
+  assert.doesNotMatch(production, /window\.trackOrder = async function/);
 });
