@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/public-tailwind.css">
-<link rel="stylesheet" href="/tracking.css?v=20260923-2">
+<link rel="stylesheet" href="/tracking.css?v=20260923-3">
 
 <style>
   :root {
@@ -786,21 +786,20 @@
   <div id="track-modal" class="modal-overlay hidden">
     <div class="panel tracking-panel" role="dialog" aria-modal="true" aria-labelledby="tracking-title">
       <button onclick="closeModal('track-modal')" class="tracking-close" aria-label="Close tracking">&times;</button>
-      <div class="tracking-heading">
-        <img src="/laundry-loop-logo.jpg" alt="The Laundry Loop" class="tracking-logo">
-        <div>
-          <span class="eyebrow">The Laundry Loop</span>
-          <h3 id="tracking-title" class="font-display">Track your order</h3>
-          <p>See where your laundry is in the loop.</p>
+      <div class="tracking-topbar">
+        <div class="tracking-brand">
+          <img src="/laundry-loop-logo.jpg" alt="The Laundry Loop" class="tracking-logo">
+        </div>
+        <div class="tracking-title-block">
+          <h3 id="tracking-title">Track Your Order</h3>
+          <form class="tracking-search" onsubmit="event.preventDefault(); trackOrder()">
+            <div class="tracking-search-row">
+              <input type="text" id="track-code-input" placeholder="Enter your order code" class="field font-mono uppercase" maxlength="24" autocomplete="off" required>
+              <button type="submit" class="btn btn-primary">Track Order</button>
+            </div>
+          </form>
         </div>
       </div>
-      <form class="tracking-search" onsubmit="event.preventDefault(); trackOrder()">
-        <label for="track-code-input" class="field-label">Order code</label>
-        <div class="tracking-search-row">
-          <input type="text" id="track-code-input" placeholder="e.g. K7M2Q9" class="field font-mono uppercase" maxlength="24" autocomplete="off" required>
-          <button type="submit" class="btn btn-primary">Track order</button>
-        </div>
-      </form>
       <div id="track-result" aria-live="polite"></div>
     </div>
   </div>
@@ -1650,6 +1649,17 @@
   }
 
   /* TRACK */
+  function trackingStageIcon(stage){
+    const icons = {
+      'Received': '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 18h28l-3 20H13zM17 18l3-8m11 8-3-8M17 25v7m7-7v7m7-7v7" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'Processing': '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17 10l7 4 7-4 9 8-6 6v14H14V24l-6-6 9-8zM19 10c1 3 9 3 10 0" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'Washing': '<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="10" y="7" width="28" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="2.8"/><circle cx="24" cy="27" r="9" fill="none" stroke="currentColor" stroke-width="2.8"/><path d="M15 13h3m5 0h10M18 26c3-3 8-3 12 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>',
+      'Drying': '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M15 10c-5 7 5 9 0 16s5 9 0 16M24 10c-5 7 5 9 0 16s5 9 0 16M33 10c-5 7 5 9 0 16s5 9 0 16" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg>',
+      'Ready for Pick-Up': '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M11 14h26v8H11zm3 10h23v8H14zm-3 10h26v7H11z" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linejoin="round"/></svg>'
+    };
+    return icons[stage] || '';
+  }
+
   async function trackOrder(){
     const input = document.getElementById('track-code-input');
     const code = input.value.trim().toUpperCase();
@@ -1668,42 +1678,128 @@
       const { data: row, error } = await sbClient.rpc('track_public_order', { p_tracking_code: code });
       if (error || !row) throw error || new Error('Not found');
 
-      const { calculate, stages } = await import('./tracking-progress.js?v=20260923-2');
+      const { calculate, visualStages } = await import('./tracking-progress.js?v=20260923-3');
       const tracking = calculate(row);
       const status = tracking.status;
-      const messages = {
-        'Received': 'Your laundry is in the loop. Our team has received your order and will prepare it for washing.',
-        'Washing': 'Your clothes are being washed. We are working to get them fresh, folded and done.',
-        'Drying': 'Your laundry is drying and moving closer to the finishing line.',
-        'Ready for Pick-Up': 'Fresh. Folded. Done. Your order is ready for pickup!',
-        'Picked Up (Archived)': 'Your order has been picked up. Thanks for choosing The Laundry Loop.',
-        'Cancelled/Refunded': 'This order has been cancelled. Please contact our team if you need help.'
-      };
-      const labels = { 'Received': 'Received', 'Washing': 'Washing', 'Drying': 'Drying', 'Ready for Pick-Up': 'Ready' };
-      const stage = stages.indexOf(status);
       const progress = tracking.progress;
-      const circumference = 2 * Math.PI * 120;
-      const timeFormat = new Intl.DateTimeFormat('en-GY', { timeZone: tracking.zone, dateStyle: 'medium', timeStyle: 'short' });
+
+      if (progress === null) {
+        resultEl.innerHTML = '<div class="tracking-error">This order is cancelled or unavailable for progress tracking. Please contact The Laundry Loop if you need help.</div>';
+        return;
+      }
+
+      const displayStage = tracking.displayStage === 'Picked Up' ? 'Ready for Pick-Up' : tracking.displayStage;
+      const currentIndex = visualStages.indexOf(displayStage);
+      const messages = {
+        'Received': ['Your laundry is in the loop!', 'We have received your order and it is waiting to be prepared for washing.'],
+        'Processing': ['Preparing your laundry', 'Our team is sorting and preparing your items for the wash cycle.'],
+        'Washing': ['Your laundry is still in the loop!', 'Our team is working hard to get your clothes fresh, folded, and done for you.'],
+        'Drying': ['Almost there!', 'Your laundry is drying and moving closer to the finishing line.'],
+        'Ready for Pick-Up': ['Fresh. Folded. Done.', 'Your order is ready for pickup!']
+      };
+      const story = messages[displayStage] || ['Your laundry is in the loop!', 'Please check back for the latest update.'];
+
+      const timeFormat = new Intl.DateTimeFormat('en-GY', {
+        timeZone: tracking.zone,
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
       const updated = Number.isFinite(tracking.lastUpdated) ? timeFormat.format(tracking.lastUpdated) : 'Not available';
-      const eta = progress === 100 ? (status === 'Ready for Pick-Up' ? 'Ready now' : 'Completed')
-        : status === 'Cancelled/Refunded' ? 'Not applicable'
-        : tracking.eta && Date.now() > tracking.eta.getTime() ? 'Past usual estimate — awaiting staff update'
-        : tracking.eta ? `Typically by ${timeFormat.format(tracking.eta)}` : 'Ask our team for an update';
+      const eta = progress === 100
+        ? 'Ready now'
+        : tracking.eta && Date.now() > tracking.eta.getTime()
+          ? 'Awaiting staff update'
+          : tracking.eta
+            ? timeFormat.format(tracking.eta)
+            : 'Ask our team';
 
-      const dial = progress === null ? '<p class="tracking-error">Progress is unavailable for this order.</p>' : `
-        <div class="tracking-gauge" role="img" aria-label="Estimated progress ${progress} percent; confirmed status ${safeHtml(status)}">
-          <svg viewBox="0 0 300 300" aria-hidden="true"><circle class="tracking-gauge-track" cx="150" cy="150" r="120"/><circle class="tracking-gauge-fill" cx="150" cy="150" r="120" stroke-dasharray="${(circumference * progress / 100).toFixed(2)} ${circumference.toFixed(2)}"/></svg>
-          <div class="tracking-pointer" style="--pointer-angle:${progress * 3.6}deg" aria-hidden="true"><div class="tracking-pointer-mark" title="Infinity loop"><svg viewBox="0 0 40 29"><path d="M20 10V8a4 4 0 1 1 4 4l-4 3L3 25h34L20 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span>∞</span></div></div>
-          <div class="tracking-gauge-center"><strong>${progress}%</strong><span>Estimated progress</span></div>
+      const cx = 310;
+      const cy = 278;
+      const radius = 210;
+      const angle = Math.PI - (Math.PI * progress / 100);
+      const pointerX = cx + radius * Math.cos(angle);
+      const pointerY = cy - radius * Math.sin(angle);
+
+      const nodes = visualStages.map((stage, index) => {
+        const className = index < currentIndex ? 'done' : index === currentIndex ? 'current' : '';
+        const positionClass = {
+          'Received': 'stage-received',
+          'Processing': 'stage-processing',
+          'Washing': 'stage-washing',
+          'Drying': 'stage-drying',
+          'Ready for Pick-Up': 'stage-ready'
+        }[stage];
+        const label = stage === 'Ready for Pick-Up' ? 'Ready<br>for Pickup' : safeHtml(stage);
+        return `<div class="tracking-stage-node ${positionClass} ${className}">
+          <div class="stage-icon">${trackingStageIcon(stage)}</div>
+          <div class="stage-label">${label}</div>
         </div>`;
+      }).join('');
 
-      resultEl.innerHTML = `<div class="tracking-result">
-        <div class="tracking-result-header"><span>Order <strong>${safeHtml(row.tracking_code)}</strong></span><span>Staff status: <strong>${safeHtml(status)}</strong></span></div>
-        ${dial}
-        <div class="tracking-stages" aria-label="Confirmed laundry stages">${stages.map((step, i) => `<div class="tracking-stage ${i < stage || (stage < 0 && progress === 100) ? 'done' : i === stage ? 'current' : ''}">${safeHtml(labels[step] || step)}</div>`).join('')}</div>
-        <div class="tracking-story"><h4>${safeHtml(status)}</h4><p>${safeHtml(messages[status] || 'Please contact our team for an update on your order.')}</p></div>
-        <div class="tracking-footer"><div>Staff status updated<strong>${safeHtml(updated)}</strong></div><div class="tracking-eta">Estimated pickup<strong>${safeHtml(eta)}</strong></div></div>
-        <p class="tracking-note">The percentage is an estimate between staff-confirmed stages. ${row.express ? 'Express timing depends on when we receive your order and machine availability.' : 'In some cases, our staff may have your laundry folded and done before 48 hours.'} You will receive an update when it is ready for pickup.</p>
+      resultEl.innerHTML = `<div class="tracking-dashboard">
+        <div class="tracking-visual" role="img" aria-label="Estimated order progress ${progress} percent. Staff confirmed status ${safeHtml(status)}.">
+          ${nodes}
+          <i class="tracking-stage-connector connector-one"></i>
+          <i class="tracking-stage-connector connector-two"></i>
+          <i class="tracking-stage-connector connector-three"></i>
+          <i class="tracking-stage-connector connector-four"></i>
+
+          <div class="tracking-arc-wrap">
+            <svg viewBox="0 0 620 355" aria-hidden="true">
+              <defs>
+                <linearGradient id="trackingProgressGradient" x1="0" x2="1">
+                  <stop offset="0%" stop-color="#0b4da1"/>
+                  <stop offset="55%" stop-color="#148edf"/>
+                  <stop offset="100%" stop-color="#4db8ef"/>
+                </linearGradient>
+              </defs>
+              <path class="tracking-arc-track" d="M100 278 A210 210 0 0 1 520 278" pathLength="100"/>
+              <path class="tracking-arc-progress" d="M100 278 A210 210 0 0 1 520 278" pathLength="100" stroke-dasharray="${progress} 100"/>
+              <path class="tracking-arc-inner" d="M118 278 A192 192 0 0 1 502 278"/>
+              <g transform="translate(${pointerX.toFixed(1)} ${pointerY.toFixed(1)})">
+                <circle class="tracking-pointer-bubble" r="27"/>
+                <path class="tracking-pointer-hanger" d="M-10 5 L0-2 L10 5 M0-2 V-7 C0-13 8-13 8-7"/>
+              </g>
+            </svg>
+          </div>
+
+          <div class="tracking-gauge-center">
+            <div class="tracking-infinity">∞</div>
+            <strong>${progress}%</strong>
+            <span>${safeHtml(displayStage)}</span>
+          </div>
+        </div>
+
+        <div class="tracking-current-status">
+          <h4>${safeHtml(story[0])}</h4>
+          <p>${safeHtml(story[1])}</p>
+          <span class="tracking-confirmed">Staff confirmed: ${safeHtml(status)}</span>
+        </div>
+
+        <div class="tracking-info-row">
+          <div class="tracking-info">
+            <div class="tracking-info-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 9v8l5 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></div>
+            <div><small>Order Code</small><strong>${safeHtml(row.tracking_code)}</strong></div>
+          </div>
+          <div class="tracking-info">
+            <div class="tracking-info-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="8" width="20" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2.3"/><path d="M10 5v6m12-6v6M6 13h20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg></div>
+            <div><small>Last Updated</small><strong>${safeHtml(updated)}</strong></div>
+          </div>
+          <div class="tracking-info">
+            <div class="tracking-info-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="8" width="20" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2.3"/><path d="M10 5v6m12-6v6M6 13h20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg></div>
+            <div><small>Estimated Pickup</small><strong>${safeHtml(eta)}</strong></div>
+          </div>
+        </div>
+
+        <div class="tracking-note">
+          <div class="tracking-note-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M26 6C15 6 8 11 7 22c5 1 10-1 13-5-3 4-7 7-12 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div>${row.express
+            ? 'Express timing follows the selected turnaround window and remains subject to machine availability. You will receive an update when your order is ready.'
+            : 'In some cases, our staff may have your laundry ready, folded and done before 48 hours. You will receive an update when it is ready for pickup.'}</div>
+        </div>
+
+        <div class="tracking-wave tracking-wave-left"></div>
+        <div class="tracking-wave tracking-wave-right"></div>
       </div>`;
     } catch {
       resultEl.innerHTML = '<p class="tracking-error">We could not find that order right now. Check the code and try again.</p>';
@@ -1712,7 +1808,7 @@
 
   setInterval(() => {
     const modal = document.getElementById('track-modal');
-    if (modal && !modal.classList.contains('hidden') && document.querySelector('#track-result .tracking-result')) trackOrder();
+    if (modal && !modal.classList.contains('hidden') && document.querySelector('#track-result .tracking-dashboard')) trackOrder();
   }, 60000);
 
   /* STAFF OPS: DISCOUNT, EDIT, CANCEL */
@@ -1977,6 +2073,6 @@
   updateAccountNavButton();
 </script>
 <!-- Production data/authentication layer. Run supabase-schema.sql first. -->
-<script src="./laundry-loop.production.js?v=20260923-2"></script>
+<script src="./laundry-loop.production.js?v=20260923-3"></script>
 </body>
 </html>
