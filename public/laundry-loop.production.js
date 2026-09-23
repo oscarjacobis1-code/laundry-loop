@@ -428,12 +428,12 @@
         list.innerHTML = '<div class="panel p-6 text-[14px] text-center" style="color:var(--sub);">No orders found under this account.</div>';
         return;
       }
-      list.innerHTML = orders.map((o) => `<div class="panel p-5 flex flex-wrap items-center justify-between gap-4"><div><div class="flex items-center gap-2"><div class="font-mono font-medium text-[13px]">${o.code}</div><button type="button" onclick="copyCode('${o.code}', this)" class="text-[10px] text-stone-500 hover:text-stone-900">Copy</button></div><div class="text-[12px] mt-1" style="color:var(--sub);">${o.date} · ${o.weight} · ${o.type}</div></div><div class="flex items-center gap-2">${statusChip(o.status)}${paymentChip(o.payment)}</div><div class="font-mono font-medium text-[14px]">${money(o.total)}</div></div>`).join('');
+      list.innerHTML = orders.map((o) => `<div class="panel p-5 flex flex-wrap items-center justify-between gap-4"><div><div class="flex items-center gap-2"><div class="font-mono font-medium text-[13px]">${escapeHtml(o.code)}</div><button type="button" onclick="copyCode('${escapeHtml(o.code)}', this)" class="text-[10px] text-stone-500 hover:text-stone-900">Copy</button></div><div class="text-[12px] mt-1" style="color:var(--sub);">${escapeHtml(o.date)} · ${escapeHtml(o.weight)} · ${escapeHtml(o.type)}</div></div><div class="flex items-center gap-2">${statusChip(o.status)}${paymentChip(o.payment)}</div><div class="font-mono font-medium text-[14px]">${money(o.total)}</div></div>`).join('');
     } catch (error) {
       sessionStorage.removeItem(SESSION_KEY);
       CURRENT_USER = null;
       updateAccountNavButton();
-      list.innerHTML = `<p class="text-[12px] text-red-700">${error.message}</p>`;
+      list.innerHTML = `<p class="text-[12px] text-red-700">${escapeHtml(error?.message || "Unable to load account.")}</p>`;
     }
   };
 
