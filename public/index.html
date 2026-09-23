@@ -1376,14 +1376,18 @@
     return code;
   }
 
+  function safeHtml(value){
+    return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
+  }
+
   function statusChip(status){
     const map = {"Received":"received","Washing":"washing","Drying":"drying","Ready for Pick-Up":"ready","Picked Up (Archived)":"archived","Cancelled/Refunded":"cancelled"};
-    return `<span class="chip chip-${map[status] || 'received'}">${status}</span>`;
+    return `<span class="chip chip-${map[status] || 'received'}">${safeHtml(status)}</span>`;
   }
 
   function paymentChip(payment){
     const map = {"Paid":"paid","Pending Confirmation":"pendingpay","Pay at Pickup":"pickup"};
-    return `<span class="chip chip-${map[payment.status] || 'pickup'}">${payment.method} · ${payment.status}</span>`;
+    return `<span class="chip chip-${map[payment.status] || 'pickup'}">${safeHtml(payment.method)} · ${safeHtml(payment.status)}</span>`;
   }
 
   let dropoffPhotoBase64 = null;
