@@ -60,28 +60,9 @@ type FunctionResult = {
   user_id?: string;
   support_admin?: boolean;
   support_for_display_name?: string;
-  device_bound?: boolean;
 };
 
 const codedMessage = (code: string, message: string) => `[${code}] ${message}`;
-
-function getStaffDeviceId() {
-  try {
-    let id = window.localStorage.getItem("ll-staff-device-id");
-    if (!id) {
-      id = crypto.randomUUID();
-      window.localStorage.setItem("ll-staff-device-id", id);
-    }
-    return id;
-  } catch {
-    return "";
-  }
-}
-
-function getStaffDeviceLabel() {
-  if (typeof navigator === "undefined") return "Laundry Loop browser";
-  return `${navigator.userAgent} · ${window.screen?.width || 0}x${window.screen?.height || 0}`.slice(0, 180);
-}
 
 async function functionFailure(
   data: unknown,
@@ -268,24 +249,6 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       return false;
     }
 
-    if (portal === "staff" && (data.role === "staff" || data.role === "manager")) {
-      const { data: deviceData, error: deviceError } = await supabase.functions.invoke("staff-login-directory", {
-        body: {
-          action: "device_check",
-          device_id: getStaffDeviceId(),
-          device_label: getStaffDeviceLabel(),
-        },
-      });
-      const devicePayload = deviceData as FunctionResult | null;
-      if (deviceError || devicePayload?.ok === false) {
-        await supabase.auth.signOut({ scope: "local" });
-        sessionStorage.removeItem("ll-access-session");
-        setMessage(await functionFailure(deviceData, deviceError, "LL-DEV-500", "This device could not be verified."));
-        setProfile(null);
-        return false;
-      }
-    }
-
     setProfile(data as Profile);
     setMessage("");
     if (portal === "staff" && data.role !== "admin") {
@@ -368,8 +331,6 @@ export default function Portal({ portal }: { portal: PortalKind }) {
           action: "login",
           user_id: identity,
           password,
-          device_id: getStaffDeviceId(),
-          device_label: getStaffDeviceLabel(),
         },
       });
       const payload = data as FunctionResult | null;
@@ -384,8 +345,6 @@ export default function Portal({ portal }: { portal: PortalKind }) {
           const valid = await validateRole(payload.user_id);
           if (valid && payload.support_admin) {
             setMessage(codedMessage("LL-SUP-001", `SnapNest support access opened for ${payload.support_for_display_name || "the selected staff account"}.`));
-          } else if (valid && payload.device_bound) {
-            setMessage("This work device is now authorized for this staff account.");
           }
         }
       }
@@ -456,8 +415,6 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         user_id: identity,
         password: attendancePassword,
         mode: attendanceMode,
-        device_id: getStaffDeviceId(),
-        device_label: getStaffDeviceLabel(),
       },
     });
     const payload = data as FunctionResult | null;
@@ -654,20 +611,6 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setBusy(false);
   }
 
-  async function resetStaffDevice(member: Profile) {
-    if (member.role === "admin") return;
-    if (!window.confirm(`Reset the authorized device for ${member.display_name}? Their current device will stop being trusted and the next successful sign-in will bind the new device.`)) return;
-    setBusy(true); setMessage("");
-    const { data, error } = await supabase.functions.invoke("admin-staff-access", {
-      body: { action: "reset_device", user_id: member.user_id },
-    });
-    if (error || (data as FunctionResult | null)?.ok === false) {
-      setMessage(await functionFailure(data, error, "LL-DEV-500", "The authorized device could not be reset."));
-    } else {
-      setMessage(`Authorized device reset for ${member.display_name}. The next successful sign-in will register the replacement device.`);
-    }
-    setBusy(false);
-  }
   async function updateSiteContent(event: FormEvent) {
     event.preventDefault();
     if (!siteContent?.id || !profile) return;
@@ -1191,7 +1134,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </select>
 <label className="toggle">
 <input type="checkbox" checked={member.active !== false} onChange={(e) => setTeam(team.map((s, i) => i === index ? { ...s, active: e.target.checked } : s))}/> Active</label>
-<div className="team-actions"><button type="button" disabled={busy} onClick={() => void updateTeam(member)}>Save access</button><button type="button" className="secondary" onClick={() => { setStaffPasswordTarget(member); setStaffPassword(""); }}>Set password</button>{member.role !== "admin" && <button type="button" className="secondary" disabled={busy} onClick={() => void resetStaffDevice(member)}>Reset device</button>}</div>
+<div className="team-actions"><button type="button" disabled={busy} onClick={() => void updateTeam(member)}>Save access</button><button type="button" className="secondary" onClick={() => { setStaffPasswordTarget(member); setStaffPassword(""); }}>Set password</button></div>
 </div>)}</div>
 <h3 className="report-heading">Attendance · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Check in</th><th>Check out</th><th>Hours</th></tr></thead><tbody>{attendance.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);const hours=row.check_out_at?((new Date(row.check_out_at).getTime()-new Date(row.check_in_at).getTime())/3600000).toFixed(2):"Open";return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.check_in_at)}</td><td>{row.check_out_at?dateTime(row.check_out_at):"Still checked in"}</td><td>{hours}</td></tr>})}</tbody></table></div>
 <h3 className="report-heading">System access · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Login</th><th>Logout</th><th>Last activity</th></tr></thead><tbody>{accessSessions.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.login_at)}</td><td>{row.logout_at?dateTime(row.logout_at):"Active / not signed out"}</td><td>{dateTime(row.last_activity_at)}</td></tr>})}</tbody></table></div>
