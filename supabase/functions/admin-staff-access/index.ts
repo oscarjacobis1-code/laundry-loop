@@ -137,13 +137,5 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
-  if (action === "reset_device") {
-    const userId = String(body?.user_id ?? "");
-    if (!userId) return json({ error: "Staff account is required.", code: "LL-DEV-004" }, 400);
-    const { error } = await admin.from("staff_device_bindings").delete().eq("staff_user_id", userId);
-    if (error) return json({ error: "The authorized device could not be reset.", code: "LL-DEV-500" }, 500);
-    return json({ ok: true });
-  }
-
   return json({ error: "Unknown action.", code: "LL-REQ-002" }, 400);
 });
