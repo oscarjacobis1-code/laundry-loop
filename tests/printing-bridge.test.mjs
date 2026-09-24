@@ -20,13 +20,15 @@ test("Android receipt taps are captured before React can enter browser PDF print
   assert.match(bridge, /window\.__LAUNDRY_DIRECT_PRINT_READY__ = true/);
 });
 
-test("direct bridge uses only the in-app native printer interface", () => {
+test("direct bridge prefers the in-app native interface and keeps Chrome printer-app fallback", () => {
   assert.match(bridge, /LaundryLoopNative/);
   assert.match(bridge, /JSON\.stringify/);
   assert.match(bridge, /params\.set\("order", meta\.order\)/);
   assert.match(bridge, /params\.set\("payment", meta\.payment\)/);
   assert.match(bridge, /suppress_drawer/);
-  assert.doesNotMatch(bridge, /intent:\/\/print/);
+  assert.match(bridge, /intent:\/\/print/);
+  assert.match(bridge, /package=\$\{packageName\}/);
+  assert.match(bridge, /browser_fallback_url/);
 });
 
 test("supervisor service management requires current password", () => {
