@@ -262,7 +262,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       await supabase.auth.signOut({ scope: "local" });
       setMessage(codedMessage(
         "LL-AUTH-009",
-        portal === "admin" ? "Staff accounts must sign in at /staff." : "This administrator account must sign in at /admin.",
+        portal === "admin" ? "Staff accounts must sign in at /staff." : "Administrator accounts must sign in at /admin unless using authorized SnapNest support access.",
       ));
       setProfile(null);
       return false;
