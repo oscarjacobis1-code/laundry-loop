@@ -93,8 +93,9 @@ Deno.serve(async (req) => {
     });
 
     if (profileInsertError) {
-      await admin.auth.admin.deleteUser(created.user.id).catch(() => undefined);
-      return json({ error: profileInsertError.message }, 400);
+      const { error: cleanupError } = await admin.auth.admin.deleteUser(created.user.id);
+      if (cleanupError) console.error("Could not clean up failed staff account:", cleanupError.message);
+      return json({ error: profileInsertError.message, code: "LL-ADM-003" }, 400);
     }
     return json({ ok: true, user_id: created.user.id });
   }
@@ -129,12 +130,20 @@ Deno.serve(async (req) => {
   if (action === "set_password") {
     const userId = String(body?.user_id ?? "");
     const password = String(body?.password ?? "");
-    if (!userId) return json({ error: "Staff account is required." }, 400);
-    if (password.length < 10) return json({ error: "Password must be at least 10 characters." }, 400);
+    if (!userId) return json({ error: "Staff account is required.", code: "LL-ADM-001" }, 400);
+    if (password.length < 10) return json({ error: "Password must be at least 10 characters.", code: "LL-ADM-002" }, 400);
     const { error } = await admin.auth.admin.updateUserById(userId, { password });
-    if (error) return json({ error: error.message }, 400);
+    if (error) return json({ error: error.message, code: "LL-ADM-004" }, 400);
     return json({ ok: true });
   }
 
-  return json({ error: "Unknown action." }, 400);
+  if (action === "reset_device") {
+    const userId = String(body?.user_id ?? "");
+    if (!userId) return json({ error: "Staff account is required.", code: "LL-DEV-004" }, 400);
+    const { error } = await admin.from("staff_device_bindings").delete().eq("staff_user_id", userId);
+    if (error) return json({ error: "The authorized device could not be reset.", code: "LL-DEV-500" }, 500);
+    return json({ ok: true });
+  }
+
+  return json({ error: "Unknown action.", code: "LL-REQ-002" }, 400);
 });
