@@ -73,10 +73,12 @@ Deno.serve(async (req) => {
     const password = String(body?.password ?? "");
     const { data, error } = await anon.auth.signInWithPassword({ email, password });
     if (error || !data.session) {
-      await admin.rpc("staff_login_record_failure", { p_user_id: userId }).catch(() => undefined);
+      const { error: failureLogError } = await admin.rpc("staff_login_record_failure", { p_user_id: userId });
+      if (failureLogError) console.error("Could not record staff login failure:", failureLogError.message);
       return json({ error: "Password is incorrect." }, 401, cors);
     }
-    await admin.rpc("staff_login_clear_failures", { p_user_id: userId }).catch(() => undefined);
+    const { error: clearFailureError } = await admin.rpc("staff_login_clear_failures", { p_user_id: userId });
+    if (clearFailureError) console.error("Could not clear staff login failures:", clearFailureError.message);
     return json({
       session: { access_token: data.session.access_token, refresh_token: data.session.refresh_token },
       user_id: data.user.id,
@@ -93,10 +95,12 @@ Deno.serve(async (req) => {
     const mode = body?.mode === "out" ? "out" : "in";
     const { data, error } = await anon.auth.signInWithPassword({ email, password });
     if (error || !data.session) {
-      await admin.rpc("staff_login_record_failure", { p_user_id: userId }).catch(() => undefined);
+      const { error: attendanceFailureLogError } = await admin.rpc("staff_login_record_failure", { p_user_id: userId });
+      if (attendanceFailureLogError) console.error("Could not record attendance login failure:", attendanceFailureLogError.message);
       return json({ error: "Password is incorrect." }, 401, cors);
     }
-    await admin.rpc("staff_login_clear_failures", { p_user_id: userId }).catch(() => undefined);
+    const { error: attendanceClearError } = await admin.rpc("staff_login_clear_failures", { p_user_id: userId });
+    if (attendanceClearError) console.error("Could not clear attendance login failures:", attendanceClearError.message);
 
     const staffClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
@@ -111,7 +115,8 @@ Deno.serve(async (req) => {
     const redirectTo = String(body?.redirect_to ?? "").trim();
     const { error } = await anon.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
     if (error) return json({ error: error.status === 429 ? "A recovery email was requested too recently." : error.message }, 400, cors);
-    await admin.rpc("request_staff_password_recovery", { p_email: email }).catch(() => undefined);
+    const { error: recoveryLogError } = await admin.rpc("request_staff_password_recovery", { p_email: email });
+    if (recoveryLogError) console.error("Could not record staff password recovery request:", recoveryLogError.message);
     return json({ ok: true }, 200, cors);
   }
 
