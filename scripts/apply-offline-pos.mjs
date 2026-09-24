@@ -32,8 +32,8 @@ replaceOnce(
 );
 
 replaceOnce(
-  '    setProfile(data as Profile); setMessage("");',
-  '    setProfile(data as Profile); cacheProfile(portal, data as Profile); setMessage("");',
+  '    setProfile(data as Profile);\n    setMessage("");',
+  '    setProfile(data as Profile);\n    cacheProfile(portal, data as Profile);\n    setMessage("");',
   "profile cache",
 );
 
