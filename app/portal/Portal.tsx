@@ -51,6 +51,59 @@ const phoneDigits = (value: string) => {
 const validPhone = (value: string) => /^\d{10,15}$/.test(phoneDigits(value));
 const dateTime = (value: string) => new Date(value).toLocaleString("en-GY", { dateStyle: "medium", timeStyle: "short" });
 
+type FunctionResult = {
+  ok?: boolean;
+  code?: string;
+  error?: string;
+  message?: string;
+  session?: { access_token: string; refresh_token: string };
+  user_id?: string;
+  support_admin?: boolean;
+  support_for_display_name?: string;
+  device_bound?: boolean;
+};
+
+const codedMessage = (code: string, message: string) => `[${code}] ${message}`;
+
+function getStaffDeviceId() {
+  try {
+    let id = window.localStorage.getItem("ll-staff-device-id");
+    if (!id) {
+      id = crypto.randomUUID();
+      window.localStorage.setItem("ll-staff-device-id", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+function getStaffDeviceLabel() {
+  if (typeof navigator === "undefined") return "Laundry Loop browser";
+  return `${navigator.userAgent} · ${window.screen?.width || 0}x${window.screen?.height || 0}`.slice(0, 180);
+}
+
+async function functionFailure(
+  data: unknown,
+  error: unknown,
+  fallbackCode: string,
+  fallbackMessage: string,
+) {
+  let payload = (data && typeof data === "object" ? data : null) as FunctionResult | null;
+  const maybeError = error as { message?: string; context?: Response } | null;
+  if ((!payload?.code && !payload?.error) && maybeError?.context) {
+    try {
+      payload = await maybeError.context.clone().json() as FunctionResult;
+    } catch {
+      // Fall through to the connector error/fallback.
+    }
+  }
+  return codedMessage(
+    payload?.code || fallbackCode,
+    payload?.error || payload?.message || maybeError?.message || fallbackMessage,
+  );
+}
+
 export default function Portal({ portal }: { portal: PortalKind }) {
   const supabase = useMemo(() => createPortalSupabase(portal), [portal]);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -184,22 +237,62 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const validateRole = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from("staff_profiles").select("user_id,display_name,role,active").eq("user_id", userId).eq("active", true).maybeSingle();
     if (error) {
-      setMessage("We could not verify this account right now. Check the connection and try again."); setProfile(null); return false;
+      setMessage(codedMessage("LL-AUTH-008", "We could not verify this account right now. Check the connection and try again."));
+      setProfile(null);
+      return false;
     }
     if (!data) {
-      await supabase.auth.signOut({ scope: "local" }); setMessage("This account is not authorized for Laundry Loop operations."); setProfile(null); return false;
+      await supabase.auth.signOut({ scope: "local" });
+      setMessage(codedMessage("LL-AUTH-006", "This account is not authorized for Laundry Loop operations."));
+      setProfile(null);
+      return false;
     }
-    const allowed = portal === "admin" ? data.role === "admin" : data.role === "staff" || data.role === "manager";
+
+    let snapNestSupport = false;
+    if (portal === "staff" && data.role === "admin") {
+      const { data: authData } = await supabase.auth.getUser();
+      snapNestSupport = authData.user?.email?.trim().toLowerCase() === "snapnestsolutions@gmail.com";
+    }
+
+    const allowed = portal === "admin"
+      ? data.role === "admin"
+      : data.role === "staff" || data.role === "manager" || snapNestSupport;
+
     if (!allowed) {
       await supabase.auth.signOut({ scope: "local" });
-      setMessage(portal === "admin" ? "Staff accounts must sign in at /staff." : "Administrator accounts must sign in at /admin.");
-      setProfile(null); return false;
+      setMessage(codedMessage(
+        "LL-AUTH-009",
+        portal === "admin" ? "Staff accounts must sign in at /staff." : "This administrator account must sign in at /admin.",
+      ));
+      setProfile(null);
+      return false;
     }
-    setProfile(data as Profile); setMessage("");
-    if (portal === "staff") {
+
+    if (portal === "staff" && (data.role === "staff" || data.role === "manager")) {
+      const { data: deviceData, error: deviceError } = await supabase.functions.invoke("staff-login-directory", {
+        body: {
+          action: "device_check",
+          device_id: getStaffDeviceId(),
+          device_label: getStaffDeviceLabel(),
+        },
+      });
+      const devicePayload = deviceData as FunctionResult | null;
+      if (deviceError || devicePayload?.ok === false) {
+        await supabase.auth.signOut({ scope: "local" });
+        sessionStorage.removeItem("ll-access-session");
+        setMessage(await functionFailure(deviceData, deviceError, "LL-DEV-500", "This device could not be verified."));
+        setProfile(null);
+        return false;
+      }
+    }
+
+    setProfile(data as Profile);
+    setMessage("");
+    if (portal === "staff" && data.role !== "admin") {
       let sessionId=sessionStorage.getItem("ll-access-session");
       if(!sessionId){sessionId=crypto.randomUUID();sessionStorage.setItem("ll-access-session",sessionId);}
-      await supabase.rpc("staff_access_login",{p_session_id:sessionId});
+      const { error: accessError } = await supabase.rpc("staff_access_login",{p_session_id:sessionId});
+      if (accessError) setMessage(codedMessage("LL-SES-001", "Signed in, but the access audit session could not be recorded."));
     }
     await loadDashboard(data.role as Role);
     if (data.role === "admin") await loadAdmin();
@@ -265,54 +358,114 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
     if (portal === "staff") {
-      if (!identity) { setMessage("Choose your name first."); setBusy(false); return; }
+      if (!identity) {
+        setMessage(codedMessage("LL-AUTH-000", "Choose your name first."));
+        setBusy(false);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("staff-login-directory", {
-        body: { action: "login", user_id: identity, password },
+        body: {
+          action: "login",
+          user_id: identity,
+          password,
+          device_id: getStaffDeviceId(),
+          device_label: getStaffDeviceLabel(),
+        },
       });
-      if (error || !(data as { session?: { access_token: string; refresh_token: string }; user_id?: string } | null)?.session) {
-        setMessage("Password is incorrect.");
+      const payload = data as FunctionResult | null;
+      if (error || !payload?.session || !payload.user_id || payload.ok === false) {
+        setMessage(await functionFailure(data, error, "LL-AUTH-500", "Sign-in could not be completed."));
       } else {
-        const payload = data as { session: { access_token: string; refresh_token: string }; user_id: string };
         const { error: sessionError } = await supabase.auth.setSession(payload.session);
-        if (sessionError) setMessage("Sign-in session could not be started.");
-        else { setPassword(""); await validateRole(payload.user_id); }
+        if (sessionError) {
+          setMessage(codedMessage("LL-AUTH-004", "Sign-in succeeded, but the secure session could not be started."));
+        } else {
+          setPassword("");
+          const valid = await validateRole(payload.user_id);
+          if (valid && payload.support_admin) {
+            setMessage(codedMessage("LL-SUP-001", `SnapNest support access opened for ${payload.support_for_display_name || "the selected staff account"}.`));
+          } else if (valid && payload.device_bound) {
+            setMessage("This work device is now authorized for this staff account.");
+          }
+        }
       }
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) setMessage("Email or password is incorrect."); else if (data.user) { setPassword(""); await validateRole(data.user.id); }
+      if (error) {
+        setMessage(codedMessage("LL-AUTH-010", "Email or password is incorrect."));
+      } else if (data.user) {
+        setPassword("");
+        await validateRole(data.user.id);
+      }
     }
     setBusy(false);
   }
 
   async function forgotPassword() {
     if (portal === "staff") {
-      if (!identity) { setMessage("Choose your name first, then select Forgot password."); return; }
+      if (!identity) {
+        setMessage(codedMessage("LL-REC-000", "Choose your name first, then select Forgot password."));
+        return;
+      }
       setBusy(true); setMessage("");
-      const { error } = await supabase.functions.invoke("staff-login-directory", {
+      const { data, error } = await supabase.functions.invoke("staff-login-directory", {
         body: { action: "recovery", user_id: identity, redirect_to: `${window.location.origin}/staff` },
       });
-      if (error) setMessage("The recovery email could not be sent right now. Please try again later.");
-      else { setRecoveryRequested(true); window.setTimeout(()=>setRecoveryRequested(false),60000); setMessage("If this account is authorized, a password reset email is on its way."); }
+      if (error || (data as FunctionResult | null)?.ok === false) {
+        setMessage(await functionFailure(data, error, "LL-REC-001", "The recovery email could not be sent right now."));
+      } else {
+        setRecoveryRequested(true);
+        window.setTimeout(()=>setRecoveryRequested(false),60000);
+        setMessage("If this account is authorized, a password reset email is on its way.");
+      }
       setBusy(false);
       return;
     }
-    if (!email.trim()) { setMessage("Enter your email first, then select Forgot password."); return; }
+    if (!email.trim()) {
+      setMessage(codedMessage("LL-REC-000", "Enter your email first, then select Forgot password."));
+      return;
+    }
     setBusy(true); setMessage("");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/${portal}` });
-    if (error) setMessage(error.status === 429 ? "A recovery email was requested too recently. Wait about 60 seconds, then use only the newest link. If delivery still fails, contact the administrator." : "The recovery email could not be sent right now. Please try again later.");
-    else { setRecoveryRequested(true); window.setTimeout(()=>setRecoveryRequested(false),60000); setMessage("If this account is authorized, a password reset email is on its way. Use only the newest link; each link works once."); }
+    if (error) {
+      setMessage(codedMessage(
+        error.status === 429 ? "LL-REC-002" : "LL-REC-001",
+        error.status === 429
+          ? "A recovery email was requested too recently. Wait about 60 seconds, then use only the newest link."
+          : "The recovery email could not be sent right now.",
+      ));
+    } else {
+      setRecoveryRequested(true);
+      window.setTimeout(()=>setRecoveryRequested(false),60000);
+      setMessage("If this account is authorized, a password reset email is on its way. Use only the newest link; each link works once.");
+    }
     setBusy(false);
   }
 
   async function attendanceAction(event:FormEvent){
     event.preventDefault(); setBusy(true); setMessage("");
-    if (!identity) { setMessage("Choose your name first."); setBusy(false); return; }
+    if (!identity) {
+      setMessage(codedMessage("LL-ATT-000", "Choose your name first."));
+      setBusy(false);
+      return;
+    }
     const member = staffDirectory.find((item) => item.user_id === identity);
-    const { error } = await supabase.functions.invoke("staff-login-directory", {
-      body: { action: "attendance", user_id: identity, password: attendancePassword, mode: attendanceMode },
+    const { data, error } = await supabase.functions.invoke("staff-login-directory", {
+      body: {
+        action: "attendance",
+        user_id: identity,
+        password: attendancePassword,
+        mode: attendanceMode,
+        device_id: getStaffDeviceId(),
+        device_label: getStaffDeviceLabel(),
+      },
     });
-    if (error) setMessage("The attendance request could not be completed. Check your password and try again.");
-    else setMessage(`${member?.display_name || "Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
+    const payload = data as FunctionResult | null;
+    if (error || payload?.ok === false) {
+      setMessage(await functionFailure(data, error, "LL-ATT-500", "The attendance request could not be completed."));
+    } else {
+      setMessage(`${member?.display_name || "Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
+    }
     setAttendancePassword(""); setBusy(false);
   }
 
@@ -445,13 +598,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setBusy(false);
   }
   async function edgeFunctionErrorMessage(error: unknown, fallback: string) {
-    const maybe = error as { message?: string; context?: Response };
-    if (maybe?.context) {
-      const body = await maybe.context.clone().json().catch(() => null) as { error?: string; message?: string } | null;
-      const detail = body?.error || body?.message;
-      if (detail) return detail;
-    }
-    return maybe?.message || fallback;
+    return functionFailure(null, error, "LL-SYS-500", fallback);
   }
 
   async function createStaff(event: FormEvent) {
@@ -503,6 +650,21 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       setMessage(`Password updated for ${staffPasswordTarget.display_name}.`);
       setStaffPasswordTarget(null);
       setStaffPassword("");
+    }
+    setBusy(false);
+  }
+
+  async function resetStaffDevice(member: Profile) {
+    if (member.role === "admin") return;
+    if (!window.confirm(`Reset the authorized device for ${member.display_name}? Their current device will stop being trusted and the next successful sign-in will bind the new device.`)) return;
+    setBusy(true); setMessage("");
+    const { data, error } = await supabase.functions.invoke("admin-staff-access", {
+      body: { action: "reset_device", user_id: member.user_id },
+    });
+    if (error || (data as FunctionResult | null)?.ok === false) {
+      setMessage(await functionFailure(data, error, "LL-DEV-500", "The authorized device could not be reset."));
+    } else {
+      setMessage(`Authorized device reset for ${member.display_name}. The next successful sign-in will register the replacement device.`);
     }
     setBusy(false);
   }
@@ -650,6 +812,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <div className="top-actions">
 <span className="live-dot">Live</span>
 <button className="secondary" onClick={() => { void loadDashboard(profile?.role); if (isAdmin) void loadAdmin(); }}>Refresh</button>
+<button className="secondary topbar-signout" onClick={() => void signOut()}>Sign out</button>
 </div>
 </header>
       {message && <p className="notice" role="status">{message}</p>}
@@ -1028,7 +1191,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </select>
 <label className="toggle">
 <input type="checkbox" checked={member.active !== false} onChange={(e) => setTeam(team.map((s, i) => i === index ? { ...s, active: e.target.checked } : s))}/> Active</label>
-<div className="team-actions"><button type="button" disabled={busy} onClick={() => void updateTeam(member)}>Save access</button><button type="button" className="secondary" onClick={() => { setStaffPasswordTarget(member); setStaffPassword(""); }}>Set password</button></div>
+<div className="team-actions"><button type="button" disabled={busy} onClick={() => void updateTeam(member)}>Save access</button><button type="button" className="secondary" onClick={() => { setStaffPasswordTarget(member); setStaffPassword(""); }}>Set password</button>{member.role !== "admin" && <button type="button" className="secondary" disabled={busy} onClick={() => void resetStaffDevice(member)}>Reset device</button>}</div>
 </div>)}</div>
 <h3 className="report-heading">Attendance · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Check in</th><th>Check out</th><th>Hours</th></tr></thead><tbody>{attendance.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);const hours=row.check_out_at?((new Date(row.check_out_at).getTime()-new Date(row.check_in_at).getTime())/3600000).toFixed(2):"Open";return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.check_in_at)}</td><td>{row.check_out_at?dateTime(row.check_out_at):"Still checked in"}</td><td>{hours}</td></tr>})}</tbody></table></div>
 <h3 className="report-heading">System access · last 7 days</h3><div className="table-wrap"><table><thead><tr><th>Staff</th><th>Login</th><th>Logout</th><th>Last activity</th></tr></thead><tbody>{accessSessions.map(row=>{const member=team.find(m=>m.user_id===row.staff_user_id);return <tr key={row.id}><td>{member?.display_name||"Staff"}</td><td>{dateTime(row.login_at)}</td><td>{row.logout_at?dateTime(row.logout_at):"Active / not signed out"}</td><td>{dateTime(row.last_activity_at)}</td></tr>})}</tbody></table></div>
