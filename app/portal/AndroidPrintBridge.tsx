@@ -62,18 +62,24 @@ export default function AndroidPrintBridge() {
         if (/picked up|archived/i.test(meta.status)) params.set("suppress_drawer", "1");
       }
 
-      if (!window.LaundryLoopNative?.print) {
-        window.alert("Laundry Loop native printing is unavailable. Reopen the POS app and try again.");
-        return false;
+      if (window.LaundryLoopNative?.print) {
+        window.LaundryLoopNative.print(JSON.stringify({
+          mode,
+          text,
+          order: params.get("order") ?? "",
+          payment: params.get("payment") ?? "",
+          suppress_drawer: params.get("suppress_drawer") === "1",
+        }));
+        return true;
       }
 
-      window.LaundryLoopNative.print(JSON.stringify({
-        mode,
-        text,
-        order: params.get("order") ?? "",
-        payment: params.get("payment") ?? "",
-        suppress_drawer: params.get("suppress_drawer") === "1",
-      }));
+      // Temporary/legacy Chrome POS compatibility: older commissioned printer
+      // app builds expose a BROWSABLE laundryloop-print intent. Keep the native
+      // interface preferred, but allow Chrome on the work tablet to hand the
+      // receipt to that installed printer app until the full POS APK is used.
+      const fallback = encodeURIComponent(window.location.href);
+      const target = `intent://print?${params.toString()}#Intent;scheme=laundryloop-print;package=${packageName};S.browser_fallback_url=${fallback};end`;
+      window.location.assign(target);
       return true;
     }
 
