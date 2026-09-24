@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /portal/
+
+# OpenAI search/discovery crawler
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /portal/
+
+# OpenAI model-training crawler; explicitly allowed for public marketing content
+User-agent: GPTBot
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /portal/
+
+Sitemap: https://thelaundryloop.net/sitemap.xml
