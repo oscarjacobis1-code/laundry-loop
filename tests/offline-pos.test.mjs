@@ -41,7 +41,7 @@ test("Android APK launches a locked-down POS with internal printing", () => {
   assert.match(manifest, /android:allowBackup="false"/);
   assert.doesNotMatch(manifest, /android:scheme="laundryloop-print"/);
   assert.match(posActivity, /LaundryLoopPOS\/2\.1/);
-  assert.match(posActivity, /FLAG_SECURE/);
+  assert.doesNotMatch(posActivity, /FLAG_SECURE/);
   assert.match(posActivity, /createConfirmDeviceCredentialIntent/);
   assert.match(posActivity, /LaundryLoopNative/);
   assert.match(posActivity, /MIXED_CONTENT_NEVER_ALLOW/);

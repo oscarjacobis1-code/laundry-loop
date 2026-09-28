@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -30,7 +29,6 @@ class PosActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         requireDeviceCredential()
     }
 

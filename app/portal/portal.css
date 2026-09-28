@@ -113,6 +113,12 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .queue-summary strong{display:block;margin-top:5px;color:var(--green);font-family:Georgia,serif;font-size:1.65rem}
 
 .split-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+.support-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.support-list{display:grid;gap:12px;margin-top:18px}
+.support-ticket{border:1px solid var(--line);border-radius:7px;padding:14px;overflow-wrap:anywhere}
+.support-ticket small{display:block;margin-top:4px;color:var(--muted)}
+.support-ticket p{white-space:pre-wrap}
+.support-ticket label{display:block;max-width:190px}
 .pos-form{display:grid;gap:20px}
 .section-heading,.inline-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}
 .section-heading h2{margin:0;font-size:1.65rem}
@@ -233,7 +239,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .toolbar{grid-template-columns:1fr 1fr}
 .toolbar input{grid-column:1/-1}
 .queue-summary{grid-template-columns:1fr 1fr}
-.form-grid,.movement-grid{grid-template-columns:1fr}
+.form-grid,.movement-grid,.support-layout{grid-template-columns:1fr}
 .discount-grid,.discount-control,.add-inventory-grid{grid-template-columns:1fr}
 .add-service-grid{grid-template-columns:1fr}.add-service-grid .toggle,.add-service-grid button{grid-column:auto}
 .discount-control button,.add-inventory-grid button{grid-column:auto}

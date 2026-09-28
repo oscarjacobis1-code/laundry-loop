@@ -27,7 +27,8 @@ type Inventory = {
 type Alert = { id: string; requester_email: string; created_at: string; resolved_at: string | null };
 type Summary = { period_days: number; orders: number; revenue: number; average_order_value: number; repeat_customers: number; busiest_hour: number | null; average_hours_to_ready: number | null };
 type Subscription = { subscription_id:string; tracking_code:string; customer_name:string; customer_phone:string; subscription_status:string; payment_status:string; payment_method:string; weekly_pounds:number; extra_pounds:number; credit_balance:number; starts_at:string|null; ends_at:string|null; created_at:string };
-type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "content" | "services" | "team" | "security";
+type SupportTicket = { id: string; created_by: string; category: string; description: string; order_code: string | null; status: "open" | "in_progress" | "resolved"; created_at: string };
+type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "support" | "content" | "services" | "team" | "security";
 type DiscountMode = "amount" | "percent";
 type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; discountMode: DiscountMode; discountValue: string };
 type SiteContent = {
@@ -97,6 +98,8 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("orders");
+  const [ticketForm, setTicketForm] = useState({ category: "Printing", description: "", orderCode: "" });
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -197,6 +200,42 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const timer = window.setTimeout(() => void loadCompletedOrders(completedSearch), 300);
     return () => window.clearTimeout(timer);
   }, [completedSearch, loadCompletedOrders, profile, view]);
+
+  const loadTickets = useCallback(async () => {
+    const { data, error } = await supabase.from("staff_support_tickets")
+      .select("id,created_by,category,description,order_code,status,created_at")
+      .order("created_at", { ascending: false }).limit(100);
+    if (error) setMessage(`Tickets could not be loaded: ${error.message}`);
+    else setTickets((data as SupportTicket[]) ?? []);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!profile || view !== "support" || !navigator.onLine) return;
+    const timer = window.setTimeout(() => void loadTickets(), 0);
+    return () => window.clearTimeout(timer);
+  }, [profile, view, loadTickets]);
+
+  async function submitTicket(event: FormEvent) {
+    event.preventDefault();
+    if (!navigator.onLine) { setMessage("Connect to the internet before submitting a support ticket."); return; }
+    setBusy(true); setMessage("");
+    const { data, error } = await supabase.from("staff_support_tickets")
+      .insert({ category: ticketForm.category, description: ticketForm.description.trim(), order_code: ticketForm.orderCode.trim().toUpperCase() || null })
+      .select("id").single();
+    if (error) setMessage(`Ticket was not submitted: ${error.message}`);
+    else {
+      setTicketForm({ category: "Printing", description: "", orderCode: "" });
+      setMessage(`Ticket ${data.id.slice(0, 8).toUpperCase()} submitted. The administrator can see it now.`);
+      await loadTickets();
+    }
+    setBusy(false);
+  }
+
+  async function updateTicketStatus(id: string, status: SupportTicket["status"]) {
+    const { error } = await supabase.from("staff_support_tickets").update({ status }).eq("id", id);
+    if (error) setMessage(`Ticket could not be updated: ${error.message}`);
+    else await loadTickets();
+  }
 
   const loadAdmin = useCallback(async () => {
     const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-7);
@@ -719,7 +758,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </section></main>;
 
   const navigation: Array<[View, string, string]> = [
-    ["orders", "Orders", String(filteredOrders.length)], ["pos", "New POS order", "+"], ["paper", "Enter paper order", ""], ["inventory", "Inventory", ""], ["operations", "Operations", ""],
+    ["orders", "Orders", String(filteredOrders.length)], ["pos", "New POS order", "+"], ["paper", "Enter paper order", ""], ["inventory", "Inventory", ""], ["operations", "Operations", ""], ["support", "Report an issue", ""],
     ...(canManageServices ? [["services", "Services & pricing", ""]] as Array<[View, string, string]> : []),
     ...(isAdmin ? [["content", "Website content", ""], ["team", "Staff", ""], ["security", "Recovery alerts", String(alerts.filter((a) => !a.resolved_at).length)]] as Array<[View, string, string]> : []),
   ];
@@ -759,6 +798,30 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </div>
 </header>
       {message && <p className="notice" role="status">{message}</p>}
+
+      {view === "support" && <section className="support-layout">
+        <form className="panel pos-form" onSubmit={submitTicket}>
+          <div className="section-heading"><div><p className="eyebrow">Staff support</p><h2>Report an issue</h2></div></div>
+          <p className="muted">Tell us what went wrong. A ticket needs internet to submit; for an urgent outage, call your manager.</p>
+          <div className="form-grid">
+            <label>Issue type<select value={ticketForm.category} onChange={event => setTicketForm({ ...ticketForm, category: event.target.value })}>
+              <option>Login</option><option>Orders</option><option>Payments</option><option>Printing</option><option>Other</option>
+            </select></label>
+            <label>Order code (optional)<input value={ticketForm.orderCode} maxLength={20} pattern="[A-Za-z0-9-]{6,20}" onChange={event => setTicketForm({ ...ticketForm, orderCode: event.target.value })} placeholder="e.g. A26AF423"/></label>
+            <label className="wide-field">What happened?<textarea value={ticketForm.description} onChange={event => setTicketForm({ ...ticketForm, description: event.target.value })} minLength={10} maxLength={2000} rows={5} required placeholder="What were you doing, and what error appeared?"/></label>
+          </div>
+          <button className="primary-wide" type="submit" disabled={busy}>Submit ticket</button>
+          <p className="muted">You can take screenshots on the tablet. Screenshot attachments to tickets will be added later.</p>
+        </form>
+        <div className="panel"><div className="section-heading"><div><p className="eyebrow">{isAdmin ? "All staff reports" : "Your reports"}</p><h2>Tickets</h2></div></div>
+          {tickets.length === 0 && <p className="muted">No tickets yet.</p>}
+          <div className="support-list">{tickets.map(ticket => <article className="support-ticket" key={ticket.id}>
+            <div><strong>{ticket.category} · {ticket.id.slice(0, 8).toUpperCase()}</strong><small>{dateTime(ticket.created_at)}{ticket.order_code ? ` · Order ${ticket.order_code}` : ""}</small></div>
+            <p>{ticket.description}</p>
+            {isAdmin ? <label>Status<select value={ticket.status} onChange={event => void updateTicketStatus(ticket.id, event.target.value as SupportTicket["status"])}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label> : <span className="badge">{ticket.status.replace("_", " ")}</span>}
+          </article>)}</div>
+        </div>
+      </section>}
 
       {view === "orders" && <section>
         <div className="toolbar">
