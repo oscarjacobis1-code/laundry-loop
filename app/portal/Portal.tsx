@@ -4,10 +4,15 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createPortalSupabase } from "./supabase";
 import {
+  cacheOrders,
   cacheProfile,
+  cacheServices,
   cacheStaffDirectory,
+  isLaundryLoopApp,
   provisionOfflineCredential,
   queueOfflineAttendance,
+  readCachedOrders,
+  readCachedServices,
   readCachedStaffDirectory,
   readQueuedOfflineAttendance,
   removeQueuedOfflineAttendance,
@@ -105,7 +110,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [newPassword, setNewPassword] = useState("");
   const [recovery, setRecovery] = useState(false);
   const [recoveryRequested, setRecoveryRequested] = useState(false);
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(() => !(portal === "staff" && isLaundryLoopApp()));
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("orders");
   const [ticketForm, setTicketForm] = useState({ category: "Printing", description: "", orderCode: "" });
@@ -114,11 +119,11 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [ticketImageUrls, setTicketImageUrls] = useState<Record<string, string>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => portal === "staff" && isLaundryLoopApp() ? readCachedOrders() as unknown as Order[] : []);
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [completedSearch, setCompletedSearch] = useState("");
   const [completedBusy, setCompletedBusy] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>(() => portal === "staff" && isLaundryLoopApp() ? readCachedServices() as Service[] : []);
   const [serviceForm, setServiceForm] = useState({ name: "", category: "", rate: "", unit: "lb", active: true });
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -136,7 +141,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [inventoryForm, setInventoryForm] = useState({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" });
   const [inventoryItemForm, setInventoryItemForm] = useState({ name: "", unit: "", reorderLevel: "", openingStock: "" });
   const [identity, setIdentity] = useState("");
-  const [staffDirectory, setStaffDirectory] = useState<StaffDirectoryEntry[]>([]);
+  const [staffDirectory, setStaffDirectory] = useState<StaffDirectoryEntry[]>(() => portal === "staff" ? readCachedStaffDirectory() : []);
   const [attendanceMode, setAttendanceMode] = useState<"in"|"out">("in");
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [accessSessions, setAccessSessions] = useState<AccessSession[]>([]);
@@ -154,6 +159,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const canManageServices = profile?.role === "manager" || isAdmin;
 
   const loadStaffDirectory = useCallback(async () => {
+    if (!navigator.onLine) {
+      const cached = readCachedStaffDirectory();
+      if (cached.length) {
+        setStaffDirectory(cached);
+        setMessage("Offline mode: using the saved staff list.");
+      } else {
+        setMessage("Connect once so this tablet can save the authorized staff list.");
+      }
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("staff-login-directory", { body: { action: "list" } });
     if (error) {
       const cached = readCachedStaffDirectory();
@@ -199,10 +214,21 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       supabase.rpc("staff_operations_summary", { p_days: summaryDays }),
       supabase.rpc("staff_subscription_summary"),
     ]);
-    if (orderResult.error) setMessage(orderResult.error.message);
-    setOrders((orderResult.data as Order[]) ?? []);
+    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);
+    const loadedOrders = (orderResult.data as Order[]) ?? [];
     const loadedServices = (serviceResult.data as Service[]) ?? [];
-    setServices(loadedServices);
+    if (orderResult.data) {
+      setOrders(loadedOrders);
+      if (portal === "staff") cacheOrders(loadedOrders as unknown as Record<string, unknown>[]);
+    } else if (portal === "staff" && isLaundryLoopApp()) {
+      setOrders(readCachedOrders() as unknown as Order[]);
+    }
+    if (serviceResult.data) {
+      setServices(loadedServices);
+      if (portal === "staff") cacheServices(loadedServices);
+    } else if (portal === "staff" && isLaundryLoopApp()) {
+      setServices(readCachedServices() as Service[]);
+    }
     const firstActive = loadedServices.find((service) => service.active);
     const defaultPosService = loadedServices.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;
     if (defaultPosService) {
@@ -358,13 +384,38 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [loadStaffDirectory, portal]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => { if (data.session) await validateRole(data.session.user.id); setBusy(false); });
+    if (portal !== "staff" || !isLaundryLoopApp() || !navigator.onLine) return;
+    void supabase.from("service_catalog")
+      .select("id,name,category,rate,unit,active")
+      .eq("active", true)
+      .order("category")
+      .order("name")
+      .then(({ data }) => {
+        if (!data) return;
+        const liveServices = data as Service[];
+        cacheServices(liveServices);
+        setServices(liveServices);
+      });
+  }, [portal, supabase]);
+
+  useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       if (event === "SIGNED_OUT") setProfile(null);
     });
+
+    if (portal === "staff" && isLaundryLoopApp()) {
+      // The counter app starts unblocked; do not perform cloud session validation here.
+      // Staff authentication is explicit: online login when connected, saved verifier when offline.
+      return () => listener.subscription.unsubscribe();
+    }
+
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) await validateRole(data.session.user.id);
+      setBusy(false);
+    });
     return () => listener.subscription.unsubscribe();
-  }, [supabase, validateRole]);
+  }, [portal, supabase, validateRole]);
 
   useEffect(()=>{
     if(!profile||portal!=="staff")return;
@@ -430,6 +481,15 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [pos.discountMode, pos.discountValue, posSubtotal, profile?.role]);
   const posTotal = Math.max(0, posSubtotal - posDiscount);
 
+  function openOfflineStaffSession(member: StaffDirectoryEntry, notice: string) {
+    setProfile({ ...member, active: true });
+    setServices(readCachedServices() as Service[]);
+    setOrders(readCachedOrders() as unknown as Order[]);
+    setPassword("");
+    setView("orders");
+    setMessage(codedMessage("LL-OFF-002", notice));
+  }
+
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
     if (portal === "staff") {
@@ -444,9 +504,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         if (!validOffline || !member) {
           setMessage(codedMessage("LL-OFF-001", "Offline sign-in is not available for this account on this tablet yet. Connect to the internet and sign in once first."));
         } else {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Signed in offline. Attendance will sync when this account next connects."));
+          openOfflineStaffSession(member, "Signed in offline. Showing the last orders and services saved on this tablet. New offline orders will sync when internet returns.");
         }
         setBusy(false);
         return;
@@ -469,9 +527,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         const validOffline = await verifyOfflineCredential(identity, enteredPassword);
         const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
         if (validOffline && member) {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Internet is unavailable. Signed in using this tablet's saved staff access."));
+          openOfflineStaffSession(member, "Internet is unavailable. Showing the last orders and services saved on this tablet.");
         } else {
           setMessage(codedMessage("LL-OFF-001", "Internet is unavailable and offline sign-in has not been set up for this account on this tablet yet."));
         }
@@ -485,9 +541,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         const validOffline = await verifyOfflineCredential(identity, enteredPassword);
         const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
         if (validOffline && member) {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Live sign-in could not reach the server. Signed in using this tablet's saved staff access."));
+          openOfflineStaffSession(member, "Live sign-in could not reach the server. Showing the last orders and services saved on this tablet.");
         } else {
           setMessage(codedMessage("LL-OFF-001", "The server could not be reached and offline sign-in has not been set up for this account on this tablet yet."));
         }
