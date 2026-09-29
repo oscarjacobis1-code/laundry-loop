@@ -84,10 +84,14 @@
       loopCreditOptions = Array.isArray(content.loop_credit_options) ? content.loop_credit_options : [];
     }
     if (serviceResult.data) {
-      for (const liveService of serviceResult.data) {
-        const localService = SERVICE_OPTIONS.find((service) => service.label === liveService.name);
-        if (localService) Object.assign(localService, { group: liveService.category, rate: Number(liveService.rate), unit: liveService.unit });
-      }
+      // The admin-managed catalog is the public website source of truth.
+      // Keep the static SERVICE_OPTIONS only as an outage/startup fallback.
+      SERVICE_OPTIONS.splice(0, SERVICE_OPTIONS.length, ...serviceResult.data.map((service) => ({
+        group: service.category,
+        label: service.name,
+        rate: Number(service.rate),
+        unit: service.unit
+      })));
       const regular = serviceResult.data.find((service) => service.name === 'Regular Laundry');
       const standard = serviceResult.data.find((service) => service.name === 'Standard Package');
       const monthly = serviceResult.data.find((service) => service.name === 'Monthly Package');
