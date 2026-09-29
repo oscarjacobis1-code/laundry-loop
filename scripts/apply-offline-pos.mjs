@@ -15,9 +15,23 @@ function replaceOnce(from, to, label) {
 
 replaceOnce(
   'import { createPortalSupabase } from "./supabase";',
-  'import { createPortalSupabase } from "./supabase";\nimport AndroidPrintBridge from "./AndroidPrintBridge";\nimport { cacheOrders, cacheProfile, cacheServices, createOfflineTrackingCode, isLaundryLoopApp, queuedOfflineCount, queueOfflineOrder, readCachedOrders, readCachedProfile, readCachedServices, readQueuedOfflineOrders, registerOfflineWorker, removeQueuedOfflineOrder } from "./offline";\n// LL_OFFLINE_POS_PATCH',
-  "offline imports",
+  'import { createPortalSupabase } from "./supabase";\nimport AndroidPrintBridge from "./AndroidPrintBridge";\n// LL_OFFLINE_POS_PATCH',
+  "offline bridge import",
 );
+
+const offlineImportEnd = '} from "./offline";';
+const offlineImportStart = 'import {\n';
+const offlineImportIndex = source.indexOf(offlineImportStart, source.indexOf('import { createPortalSupabase'));
+const offlineImportEndIndex = source.indexOf(offlineImportEnd, offlineImportIndex);
+if (offlineImportIndex >= 0 && offlineImportEndIndex >= 0) {
+  const existing = source.slice(offlineImportIndex, offlineImportEndIndex + offlineImportEnd.length);
+  const names = existing.replace('import {', '').replace(offlineImportEnd, '').split(',').map((name) => name.trim()).filter(Boolean);
+  const required = ['cacheOrders','cacheProfile','cacheServices','createOfflineTrackingCode','isLaundryLoopApp','queuedOfflineCount','queueOfflineOrder','readCachedOrders','readCachedProfile','readCachedServices','readQueuedOfflineOrders','registerOfflineWorker','removeQueuedOfflineOrder'];
+  const merged = [...new Set([...names, ...required])].sort();
+  source = source.slice(0, offlineImportIndex) + 'import {\n  ' + merged.join(',\n  ') + ',\n} from "./offline";' + source.slice(offlineImportEndIndex + offlineImportEnd.length);
+} else {
+  throw new Error("Could not find offline imports");
+}
 
 replaceOnce(
   '  const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");',
@@ -31,11 +45,13 @@ replaceOnce(
   "dashboard offline cache",
 );
 
-replaceOnce(
-  '    setProfile(data as Profile);\n    setMessage("");',
-  '    setProfile(data as Profile);\n    cacheProfile(portal, data as Profile);\n    setMessage("");',
-  "profile cache",
-);
+if (!source.includes("cacheProfile(portal, data as Profile);")) {
+  replaceOnce(
+    '    setProfile(data as Profile);\n    setMessage("");',
+    '    setProfile(data as Profile);\n    cacheProfile(portal, data as Profile);\n    setMessage("");',
+    "profile cache",
+  );
+}
 
 const authEffect = [
 '  useEffect(() => {',
