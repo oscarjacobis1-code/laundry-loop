@@ -9,7 +9,7 @@ declare global {
   interface Window {
     __LAUNDRY_DIRECT_PRINT_READY__?: boolean;
     __LAUNDRY_DIRECT_PRINT__?: (mode: "receipt" | "tag") => boolean;
-    LaundryLoopNative?: { print: (payload: string) => void };
+    LaundryLoopNative?: { print: (payload: string) => void; openPrinterSettings?: () => void };
   }
 }
 
@@ -102,6 +102,16 @@ export default function AndroidPrintBridge() {
       directPrint(mode);
     }
 
+    const openPrinterSettings = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest<HTMLElement>("[data-open-printer-settings]");
+      if (!button) return;
+      event.preventDefault();
+      if (window.LaundryLoopNative?.openPrinterSettings) window.LaundryLoopNative.openPrinterSettings();
+      else window.alert("Printer settings are available inside the Laundry Loop Android app.");
+    };
+
     window.__LAUNDRY_DIRECT_PRINT_READY__ = true;
     window.__LAUNDRY_DIRECT_PRINT__ = directPrint;
     document.documentElement.dataset.laundryDirectPrint = "ready";
@@ -116,9 +126,11 @@ export default function AndroidPrintBridge() {
     };
 
     document.addEventListener("click", onClick, true);
+    document.addEventListener("click", openPrinterSettings, true);
 
     return () => {
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("click", openPrinterSettings, true);
       window.print = originalPrint;
       delete window.__LAUNDRY_DIRECT_PRINT_READY__;
       delete window.__LAUNDRY_DIRECT_PRINT__;
