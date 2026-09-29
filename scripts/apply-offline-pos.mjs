@@ -26,7 +26,7 @@ const offlineImportEndIndex = source.indexOf(offlineImportEnd, offlineImportInde
 if (offlineImportIndex >= 0 && offlineImportEndIndex >= 0) {
   const existing = source.slice(offlineImportIndex, offlineImportEndIndex + offlineImportEnd.length);
   const names = existing.replace('import {', '').replace(offlineImportEnd, '').split(',').map((name) => name.trim()).filter(Boolean);
-  const required = ['cacheOrders','cacheProfile','cacheServices','createOfflineTrackingCode','isLaundryLoopApp','queuedOfflineCount','queueOfflineOrder','readCachedOrders','readCachedProfile','readCachedServices','readQueuedOfflineOrders','registerOfflineWorker','removeQueuedOfflineOrder'];
+  const required = ['cacheOrders','cacheProfile','cacheServices','createOfflineTrackingCode','isLaundryLoopApp','queuedOfflineCount','queueOfflineOrder','readCachedOrders','readCachedServices','readQueuedOfflineOrders','registerOfflineWorker','removeQueuedOfflineOrder'];
   const merged = [...new Set([...names, ...required])].sort();
   source = source.slice(0, offlineImportIndex) + 'import {\n  ' + merged.join(',\n  ') + ',\n} from "./offline";' + source.slice(offlineImportEndIndex + offlineImportEnd.length);
 } else {
@@ -55,13 +55,24 @@ if (!source.includes("cacheProfile(portal, data as Profile);")) {
 
 const authEffect = [
 '  useEffect(() => {',
-'    supabase.auth.getSession().then(async ({ data }) => { if (data.session) await validateRole(data.session.user.id); setBusy(false); });',
 '    const { data: listener } = supabase.auth.onAuthStateChange((event) => {',
 '      if (event === "PASSWORD_RECOVERY") setRecovery(true);',
 '      if (event === "SIGNED_OUT") setProfile(null);',
 '    });',
+'',
+'    if (portal === "staff" && isLaundryLoopApp()) {',
+'      // The counter app must never hold the login screen behind a cloud session check.',
+'      // Staff authentication is explicit: online login when connected, saved verifier when offline.',
+'      setBusy(false);',
+'      return () => listener.subscription.unsubscribe();',
+'    }',
+'',
+'    void supabase.auth.getSession().then(async ({ data }) => {',
+'      if (data.session) await validateRole(data.session.user.id);',
+'      setBusy(false);',
+'    });',
 '    return () => listener.subscription.unsubscribe();',
-'  }, [supabase, validateRole]);'
+'  }, [portal, supabase, validateRole]);'
 ].join("\n");
 
 const offlineAuthEffect = [
@@ -75,35 +86,13 @@ const offlineAuthEffect = [
 '    refreshConnection();',
 '    window.addEventListener("online", refreshConnection);',
 '    window.addEventListener("offline", refreshConnection);',
-'',
-'    if (portal === "staff" && isLaundryLoopApp() && !navigator.onLine) {',
-'      const cached = readCachedProfile(portal) as Profile | null;',
-'      if (cached) {',
-'        queueMicrotask(() => {',
-'          setProfile(cached);',
-'          setServices(readCachedServices() as Service[]);',
-'          setOrders(readCachedOrders() as unknown as Order[]);',
-'          setMessage("Offline mode: orders can still be taken and printed. Cloud changes will sync when internet returns.");',
-'          setBusy(false);',
-'        });',
-'      }',
-'    }',
-'',
 '    return () => {',
 '      window.removeEventListener("online", refreshConnection);',
 '      window.removeEventListener("offline", refreshConnection);',
 '    };',
 '  }, [portal]);',
 '',
-'  useEffect(() => {',
-'    if (portal === "staff" && isLaundryLoopApp() && !navigator.onLine && readCachedProfile(portal)) return;',
-'    supabase.auth.getSession().then(async ({ data }) => { if (data.session) await validateRole(data.session.user.id); setBusy(false); });',
-'    const { data: listener } = supabase.auth.onAuthStateChange((event) => {',
-'      if (event === "PASSWORD_RECOVERY") setRecovery(true);',
-'      if (event === "SIGNED_OUT") setProfile(null);',
-'    });',
-'    return () => listener.subscription.unsubscribe();',
-'  }, [portal, supabase, validateRole]);'
+...authEffect.split("\n"),
 ].join("\n");
 
 replaceOnce(authEffect, offlineAuthEffect, "auth effect");
