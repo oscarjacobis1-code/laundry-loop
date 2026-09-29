@@ -902,7 +902,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
       {view === "support" && <section className="support-layout">
         <form className="panel pos-form" onSubmit={submitTicket}>
-          <div className="section-heading"><div><p className="eyebrow">Staff support</p><h2>Report an issue</h2></div></div>
+          <div className="section-heading"><div><p className="eyebrow">Staff support</p><h2>Report an issue</h2></div><button type="button" className="secondary" data-open-printer-settings>Printer settings</button></div>
           <p className="muted">Tell us what went wrong. A ticket needs internet to submit; for an urgent outage, call your manager.</p>
           <div className="form-grid">
             <label>Issue type<select value={ticketForm.category} onChange={event => setTicketForm({ ...ticketForm, category: event.target.value })}>
