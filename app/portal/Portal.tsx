@@ -910,7 +910,14 @@ export default function Portal({ portal }: { portal: PortalKind }) {
             </select></label>
             <label>Order code (optional)<input value={ticketForm.orderCode} maxLength={20} pattern="[A-Za-z0-9-]{6,20}" onChange={event => setTicketForm({ ...ticketForm, orderCode: event.target.value })} placeholder="e.g. A26AF423"/></label>
             <label className="wide-field">What happened?<textarea value={ticketForm.description} onChange={event => setTicketForm({ ...ticketForm, description: event.target.value })} minLength={10} maxLength={2000} rows={5} required placeholder="What were you doing, and what error appeared?"/></label>
-            <label className="wide-field">Screenshot (optional)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setTicketScreenshot(event.target.files?.[0] ?? null)}/></label>
+            <div className="wide-field ticket-upload">
+              <span>Screenshot (optional)</span>
+              <label className="ticket-file-button">
+                <input type="file" accept="image/*" onChange={event => setTicketScreenshot(event.target.files?.[0] ?? null)}/>
+                <span>{ticketScreenshot ? "Change screenshot" : "Choose screenshot"}</span>
+              </label>
+              <small>{ticketScreenshot ? ticketScreenshot.name : "No screenshot selected"}</small>
+            </div>
           </div>
           <button className="primary-wide" type="submit" disabled={busy}>Submit ticket</button>
           <p className="muted">PNG, JPEG or WebP, up to 5 MB. Only the reporting staff member and administrators can open the attachment.</p>
