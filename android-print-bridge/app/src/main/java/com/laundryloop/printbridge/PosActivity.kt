@@ -1,13 +1,10 @@
 package com.laundryloop.printbridge
 
 import android.annotation.SuppressLint
-import android.app.KeyguardManager
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -16,7 +13,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -26,48 +22,11 @@ import org.json.JSONObject
 class PosActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var initialized = false
-    private var backgroundedAt = 0L
-    private var awaitingCredential = false
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requireDeviceCredential()
-    }
-
-    private fun requireDeviceCredential() {
-        if (awaitingCredential) return
-        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        if (!keyguard.isDeviceSecure) {
-            showSecurityRequired()
-            return
-        }
-
-        val intent = keyguard.createConfirmDeviceCredentialIntent(
-            "Unlock Laundry Loop POS",
-            "Confirm the tablet PIN, pattern or password to access customer and order data."
-        )
-
-        if (intent == null) {
-            initializePos()
-            return
-        }
-
-        awaitingCredential = true
-        @Suppress("DEPRECATION")
-        startActivityForResult(intent, REQUEST_UNLOCK)
-    }
-
-    private fun showSecurityRequired() {
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        setContentView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(TextView(this@PosActivity).apply {
-                text = "Laundry Loop POS requires a device screen lock before customer data can be opened. Set a PIN, pattern or password in Android Settings, then reopen the app."
-                textSize = 18f
-            })
-        })
+        initializePos()
     }
 
     @Suppress("DEPRECATION")
@@ -78,9 +37,6 @@ class PosActivity : AppCompatActivity() {
             pendingFileChooser = null
             return
         }
-        if (requestCode != REQUEST_UNLOCK) return
-        awaitingCredential = false
-        if (resultCode == RESULT_OK) initializePos() else finish()
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
@@ -219,19 +175,6 @@ class PosActivity : AppCompatActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        backgroundedAt = SystemClock.elapsedRealtime()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        if (initialized && backgroundedAt > 0L && SystemClock.elapsedRealtime() - backgroundedAt > RELOCK_AFTER_MS) {
-            initialized = false
-            requireDeviceCredential()
-        }
-    }
-
     override fun onDestroy() {
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface("LaundryLoopNative")
@@ -249,9 +192,7 @@ class PosActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val REQUEST_UNLOCK = 601
         private const val REQUEST_FILE = 602
         private const val TRUSTED_HOST = "thelaundryloop.net"
-        private const val RELOCK_AFTER_MS = 60_000L
     }
 }
