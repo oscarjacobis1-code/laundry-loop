@@ -105,11 +105,12 @@
         document.querySelectorAll('[data-monthly-price]').forEach((element) => { element.textContent = `GYD $${CONFIG.monthlyPackagePrice.toLocaleString()}/month`; });
       }
       document.querySelectorAll('.service-select').forEach((select) => {
-        const selected = Number(select.value || 0);
-        select.innerHTML = serviceOptionsHtml(selected);
-        select.value = String(selected);
+        const previousLabel = select.options[select.selectedIndex]?.textContent?.split(' — ')[0] || '';
+        select.innerHTML = serviceOptionsHtml();
+        const matchingIndex = SERVICE_OPTIONS.findIndex((service) => service.label === previousLabel);
+        select.value = String(matchingIndex >= 0 ? matchingIndex : 0);
       });
-      ['dropoff', 'online', 'calc'].forEach((type) => updateOrderBuilder(type));
+      ['dropoff', 'online', 'calc', 'pos'].forEach((type) => updateOrderBuilder(type));
     }
     if (contentResult.error) console.warn('Website content could not be refreshed.', contentResult.error.message);
     if (serviceResult.error) console.warn('Live service pricing could not be refreshed.', serviceResult.error.message);
