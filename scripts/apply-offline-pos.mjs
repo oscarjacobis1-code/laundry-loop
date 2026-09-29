@@ -65,7 +65,6 @@ const authEffect = [
 '    if (portal === "staff" && isLaundryLoopApp()) {',
 '      // The counter app must never hold the login screen behind a cloud session check.',
 '      // Staff authentication is explicit: online login when connected, saved verifier when offline.',
-'      setBusy(false);',
 '      return () => listener.subscription.unsubscribe();',
 '    }',
 '',
