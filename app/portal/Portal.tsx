@@ -3,6 +3,16 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createPortalSupabase } from "./supabase";
+import {
+  cacheProfile,
+  cacheStaffDirectory,
+  provisionOfflineCredential,
+  queueOfflineAttendance,
+  readCachedStaffDirectory,
+  readQueuedOfflineAttendance,
+  removeQueuedOfflineAttendance,
+  verifyOfflineCredential,
+} from "./offline";
 import "./portal.css";
 
 type PortalKind = "admin" | "staff";
@@ -146,11 +156,18 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const loadStaffDirectory = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("staff-login-directory", { body: { action: "list" } });
     if (error) {
-      setMessage("Staff list could not be loaded. Refresh and try again.");
+      const cached = readCachedStaffDirectory();
+      if (cached.length) {
+        setStaffDirectory(cached);
+        setMessage(navigator.onLine ? "Live staff list could not be loaded. Using the saved tablet list." : "Offline mode: using the saved staff list.");
+      } else {
+        setMessage("Staff list could not be loaded. Connect once so this tablet can save the authorized staff list.");
+      }
       return;
     }
     const staff = ((data as { staff?: StaffDirectoryEntry[] } | null)?.staff) ?? [];
     setStaffDirectory(staff);
+    cacheStaffDirectory(staff);
     if (identity && !staff.some((member) => member.user_id === identity)) {
       setIdentity("");
       setEmail("");
@@ -321,6 +338,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     }
 
     setProfile(data as Profile);
+    cacheProfile(portal, data as Profile);
     setMessage("");
     if (portal === "staff" && data.role !== "admin") {
       let sessionId=sessionStorage.getItem("ll-access-session");
@@ -353,6 +371,29 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const timer=window.setInterval(()=>{const id=sessionStorage.getItem("ll-access-session");if(id)void supabase.rpc("staff_access_heartbeat",{p_session_id:id});},300000);
     return()=>window.clearInterval(timer);
   },[profile,portal,supabase]);
+
+  useEffect(() => {
+    if (!profile || portal !== "staff" || !navigator.onLine) return;
+    const syncAttendance = async () => {
+      const queued = readQueuedOfflineAttendance().filter((item) => item.userId === profile.user_id);
+      for (const item of queued) {
+        const { error } = await supabase.rpc("staff_sync_attendance_event", {
+          p_event_id: item.eventId,
+          p_mode: item.mode,
+          p_occurred_at: item.occurredAt,
+        });
+        if (!error) removeQueuedOfflineAttendance(item.eventId);
+        else {
+          setMessage(codedMessage("LL-OFF-004", `An offline attendance record could not sync: ${error.message}`));
+          break;
+        }
+      }
+    };
+    void syncAttendance();
+    const online = () => void syncAttendance();
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, [profile, portal, supabase]);
 
   useEffect(()=>{
     if(!profile)return;
@@ -397,6 +438,20 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         setBusy(false);
         return;
       }
+      if (!navigator.onLine) {
+        const validOffline = await verifyOfflineCredential(identity, password);
+        const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
+        if (!validOffline || !member) {
+          setMessage(codedMessage("LL-OFF-001", "Offline sign-in is not available for this account on this tablet yet. Connect to the internet and sign in once first."));
+        } else {
+          setProfile({ ...member, active: true });
+          setPassword("");
+          setMessage(codedMessage("LL-OFF-002", "Signed in offline. Attendance will sync when this account next connects."));
+        }
+        setBusy(false);
+        return;
+      }
+      const enteredPassword = password;
       const { data, error } = await supabase.functions.invoke("staff-login-directory", {
         body: {
           action: "login",
@@ -414,6 +469,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         } else {
           setPassword("");
           const valid = await validateRole(payload.user_id);
+          if (valid && !payload.support_admin) await provisionOfflineCredential(payload.user_id, enteredPassword);
           if (valid && payload.support_admin) {
             setMessage(codedMessage("LL-SUP-001", `SnapNest support access opened for ${payload.support_for_display_name || "the selected staff account"}.`));
           }
@@ -479,7 +535,19 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       setBusy(false);
       return;
     }
-    const member = staffDirectory.find((item) => item.user_id === identity);
+    const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
+    if (!navigator.onLine) {
+      const validOffline = await verifyOfflineCredential(identity, attendancePassword);
+      if (!validOffline || !member) {
+        setMessage(codedMessage("LL-OFF-003", "Offline attendance is not available for this account on this tablet yet. Connect and authenticate once first."));
+      } else {
+        const eventRecord = queueOfflineAttendance(identity, attendanceMode);
+        setMessage(`${member.display_name} checked ${attendanceMode} offline at ${new Date(eventRecord.occurredAt).toLocaleTimeString()}. It will sync automatically after the account signs in online.`);
+      }
+      setAttendancePassword(""); setBusy(false);
+      return;
+    }
+    const enteredAttendancePassword = attendancePassword;
     const { data, error } = await supabase.functions.invoke("staff-login-directory", {
       body: {
         action: "attendance",
@@ -492,6 +560,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     if (error || payload?.ok === false) {
       setMessage(await functionFailure(data, error, "LL-ATT-500", "The attendance request could not be completed."));
     } else {
+      await provisionOfflineCredential(identity, enteredAttendancePassword);
       setMessage(`${member?.display_name || "Staff"} checked ${attendanceMode} at ${new Date().toLocaleTimeString()}.`);
     }
     setAttendancePassword(""); setBusy(false);
