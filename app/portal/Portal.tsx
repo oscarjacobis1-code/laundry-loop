@@ -384,6 +384,21 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [loadStaffDirectory, portal]);
 
   useEffect(() => {
+    if (portal !== "staff" || !isLaundryLoopApp() || !navigator.onLine) return;
+    void supabase.from("service_catalog")
+      .select("id,name,category,rate,unit,active")
+      .eq("active", true)
+      .order("category")
+      .order("name")
+      .then(({ data }) => {
+        if (!data) return;
+        const liveServices = data as Service[];
+        cacheServices(liveServices);
+        setServices(liveServices);
+      });
+  }, [portal, supabase]);
+
+  useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       if (event === "SIGNED_OUT") setProfile(null);
