@@ -88,8 +88,8 @@ replaceOnce(
 );
 
 replaceOnce(
-  '      const saved = data as Order; setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);',
-  '      const saved = data as Order;\n      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;\n      setSelectedOrder(receiptOrder); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);',
+  '      const saved = data as Order;\\n      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);\\n      // The order is already committed by staff_create_order. Show the receipt immediately\\n      // and refresh the heavier dashboard queries in the background.\\n      setOrders(current => [saved, ...current.filter(order => order.id !== saved.id)]);\\n      setSelectedOrder(saved); setView("orders"); setMessage(\`Order \${saved.tracking_code} created. Receipt is ready to print.\`);\\n      void loadDashboard(profile?.role);'.replaceAll('\\\\n','\\n'),
+  '      const saved = data as Order;\\n      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;\\n      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);\\n      // The order is already committed by staff_create_order. Show the receipt immediately\\n      // and refresh the heavier dashboard queries in the background.\\n      setOrders(current => [receiptOrder, ...current.filter(order => order.id !== saved.id)]);\\n      setSelectedOrder(receiptOrder); setView("orders"); setMessage(\`Order \${saved.tracking_code} created. Receipt is ready to print.\`);\\n      void loadDashboard(profile?.role);'.replaceAll('\\\\n','\\n'),
   'saved cash receipt data',
 );
 
