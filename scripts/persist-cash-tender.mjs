@@ -18,7 +18,7 @@ const from = `      const saved = data as Order;
       void loadDashboard(profile?.role);`;
 
 const to = `      const saved = data as Order;
-      let receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;
+      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;
       if (pos.paymentMethod === "Cash") {
         // Persist tender details without blocking the cashier or receipt.
         void supabase.from("orders").update({ payment: receiptOrder.payment }).eq("id", saved.id);
