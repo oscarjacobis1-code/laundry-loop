@@ -568,9 +568,11 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   async function signOut(){
     const sessionId=sessionStorage.getItem("ll-access-session");
-    if(sessionId) await supabase.rpc("staff_access_logout",{p_session_id:sessionId});
-    sessionStorage.removeItem("ll-access-session"); await supabase.auth.signOut({ scope: "local" });
+    sessionStorage.removeItem("ll-access-session");
     setPassword(""); setAttendancePassword(""); setNewPassword(""); setEmail(""); setProfile(null);
+    // Local sign-out must be immediate. Audit logging is best-effort and must never block staff.
+    if(sessionId && navigator.onLine) void supabase.rpc("staff_access_logout",{p_session_id:sessionId});
+    void supabase.auth.signOut({ scope: "local" });
   }
 
   async function savePassword(event: FormEvent) {
@@ -611,8 +613,13 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     else {
       const firstActive = services.find((service) => service.active);
       const defaultPosService = services.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;
-      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]); await loadDashboard(profile?.role);
-      const saved = data as Order; setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);
+      const saved = data as Order;
+      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);
+      // The order is already committed by staff_create_order. Show the receipt immediately
+      // and refresh the heavier dashboard queries in the background.
+      setOrders(current => [saved, ...current.filter(order => order.id !== saved.id)]);
+      setSelectedOrder(saved); setView("orders"); setMessage(`Order ${saved.tracking_code} created. Receipt is ready to print.`);
+      void loadDashboard(profile?.role);
     }
     setBusy(false);
   }
