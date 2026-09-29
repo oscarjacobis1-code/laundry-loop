@@ -159,6 +159,7 @@ function bytesToBase64(bytes: Uint8Array) {
 }
 
 async function deriveOfflineVerifier(password: string, salt: Uint8Array, iterations: number) {
+  const pbkdfSalt = Uint8Array.from(salt).buffer;
   const material = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -167,7 +168,7 @@ async function deriveOfflineVerifier(password: string, salt: Uint8Array, iterati
     ["deriveBits"],
   );
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: pbkdfSalt, iterations },
     material,
     256,
   );
