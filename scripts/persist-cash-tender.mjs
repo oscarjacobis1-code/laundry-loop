@@ -8,9 +8,25 @@ if (source.includes('Cash tender details did not sync')) {
   process.exit(0);
 }
 
-const from = `      const firstActive = services.find((service) => service.active);\n      const defaultPosService = services.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;\n      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]); await loadDashboard(profile?.role);\n      const saved = data as Order;\n      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;\n      setSelectedOrder(receiptOrder); setView("orders"); setMessage(\`Order \${saved.tracking_code} created. Receipt is ready to print.\`);`;
+const from = `      const saved = data as Order;
+      const receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;
+      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);
+      // The order is already committed by staff_create_order. Show the receipt immediately
+      // and refresh the heavier dashboard queries in the background.
+      setOrders(current => [receiptOrder, ...current.filter(order => order.id !== saved.id)]);
+      setSelectedOrder(receiptOrder); setView("orders"); setMessage(\`Order \${saved.tracking_code} created. Receipt is ready to print.\`);
+      void loadDashboard(profile?.role);`;
 
-const to = `      const firstActive = services.find((service) => service.active);\n      const defaultPosService = services.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;\n      const saved = data as Order;\n      let receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;\n      let cashSyncWarning = false;\n      if (pos.paymentMethod === "Cash") {\n        const { data: syncedOrder, error: cashSyncError } = await supabase\n          .from("orders")\n          .update({ payment: receiptOrder.payment })\n          .eq("id", saved.id)\n          .select(orderColumns)\n          .single();\n        if (!cashSyncError && syncedOrder) receiptOrder = syncedOrder as Order;\n        else cashSyncWarning = true;\n      }\n      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);\n      await loadDashboard(profile?.role);\n      setSelectedOrder(receiptOrder); setView("orders");\n      setMessage(cashSyncWarning\n        ? \`Order \${saved.tracking_code} created. Cash tender details did not sync, but the receipt is ready to print.\`\n        : \`Order \${saved.tracking_code} created. Receipt is ready to print.\`);`;
+const to = `      const saved = data as Order;
+      let receiptOrder = pos.paymentMethod === "Cash" ? { ...saved, payment: { ...(saved.payment || {}), method: "Cash", status: "Paid", cash_received: cashReceived, change_due: changeDue } } : saved;
+      if (pos.paymentMethod === "Cash") {
+        // Persist tender details without blocking the cashier or receipt.
+        void supabase.from("orders").update({ payment: receiptOrder.payment }).eq("id", saved.id);
+      }
+      setPos(emptyPos); setPosItems([{ service_id: defaultPosService?.id ?? "", qty: 1 }]);
+      setOrders(current => [receiptOrder, ...current.filter(order => order.id !== saved.id)]);
+      setSelectedOrder(receiptOrder); setView("orders"); setMessage(\`Order \${saved.tracking_code} created. Receipt is ready to print.\`);
+      void loadDashboard(profile?.role);`;
 
 if (!source.includes(from)) {
   throw new Error('Could not find generated cash receipt block. Run apply-pos-cash-tender.mjs first.');
