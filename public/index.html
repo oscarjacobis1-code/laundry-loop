@@ -1791,14 +1791,16 @@
         return;
       }
 
-      const displayStage = tracking.displayStage === 'Picked Up' ? 'Ready for Pick-Up' : tracking.displayStage;
-      const currentIndex = visualStages.indexOf(displayStage);
+      const isPickedUp = tracking.displayStage === 'Picked Up' || status === 'Picked Up (Archived)';
+      const displayStage = isPickedUp ? 'Picked Up' : tracking.displayStage;
+      const currentIndex = isPickedUp ? visualStages.length - 1 : visualStages.indexOf(displayStage);
       const messages = {
         'Received': ['Your laundry is in the loop!', 'We have received your order and it is waiting to be prepared for washing.'],
         'Processing': ['Preparing your laundry', 'Our team is sorting and preparing your items for the wash cycle.'],
         'Washing': ['Your laundry is still in the loop!', 'Our team is working hard to get your clothes fresh, folded, and done for you.'],
         'Drying': ['Almost there!', 'Your laundry is drying and moving closer to the finishing line.'],
-        'Ready for Pick-Up': ['Fresh. Folded. Done.', 'Your order is ready for pickup!']
+        'Ready for Pick-Up': ['Fresh. Folded. Done.', 'Your order is ready for pickup!'],
+        'Picked Up': ['Fresh. Folded. Done.', 'Your order has been picked up. Thank you for choosing The Laundry Loop!']
       };
       const story = messages[displayStage] || ['Your laundry is in the loop!', 'Please check back for the latest update.'];
 
@@ -1808,8 +1810,10 @@
         timeStyle: 'short'
       });
       const updated = Number.isFinite(tracking.lastUpdated) ? timeFormat.format(tracking.lastUpdated) : 'Not available';
-      const eta = progress === 100
-        ? 'Ready now'
+      const eta = isPickedUp
+        ? 'Completed'
+        : progress === 100
+          ? 'Ready now'
         : tracking.eta && Date.now() > tracking.eta.getTime()
           ? 'Awaiting staff update'
           : tracking.eta
@@ -1832,7 +1836,7 @@
           'Drying': 'stage-drying',
           'Ready for Pick-Up': 'stage-ready'
         }[stage];
-        const label = stage === 'Ready for Pick-Up' ? 'Ready<br>for Pickup' : safeHtml(stage);
+        const label = stage === 'Ready for Pick-Up' ? (isPickedUp ? 'Picked<br>Up' : 'Ready<br>for Pickup') : safeHtml(stage);
         return `<div class="tracking-stage-node ${positionClass} ${className}">
           <div class="stage-icon">${trackingStageIcon(stage)}</div>
           <div class="stage-label">${label}</div>
@@ -1840,7 +1844,7 @@
       }).join('');
 
       resultEl.innerHTML = `<div class="tracking-dashboard">
-        <div class="tracking-visual" role="img" aria-label="Estimated order progress ${progress} percent. Staff confirmed status ${safeHtml(status)}.">
+        <div class="tracking-visual ${isPickedUp ? 'is-picked-up' : ''}" role="img" aria-label="Estimated order progress ${progress} percent. Staff confirmed status ${safeHtml(status)}.">
           ${nodes}
           <i class="tracking-stage-connector connector-one"></i>
           <i class="tracking-stage-connector connector-two"></i>
@@ -1859,10 +1863,10 @@
               <path class="tracking-arc-track" d="M100 278 A210 210 0 0 1 520 278" pathLength="100"/>
               <path class="tracking-arc-progress" d="M100 278 A210 210 0 0 1 520 278" pathLength="100" stroke-dasharray="${progress} 100"/>
               <path class="tracking-arc-inner" d="M118 278 A192 192 0 0 1 502 278"/>
-              <g transform="translate(${pointerX.toFixed(1)} ${pointerY.toFixed(1)})">
+              ${isPickedUp ? '' : `<g transform="translate(${pointerX.toFixed(1)} ${pointerY.toFixed(1)})">
                 <circle class="tracking-pointer-bubble" r="27"/>
                 <path class="tracking-pointer-hanger" d="M-10 5 L0-2 L10 5 M0-2 V-7 C0-13 8-13 8-7"/>
-              </g>
+              </g>`}
             </svg>
           </div>
 
