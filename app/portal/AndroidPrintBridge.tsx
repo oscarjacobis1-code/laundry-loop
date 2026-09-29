@@ -33,15 +33,16 @@ export default function AndroidPrintBridge() {
 
     function receiptMeta() {
       const receipt = document.querySelector<HTMLElement>("#printable-receipt");
-      if (!receipt) return { order: "", payment: "", status: "" };
+      if (!receipt) return { order: "", payment: "", paymentStatus: "", status: "" };
 
       const order = receipt.querySelector("h2")?.textContent?.trim() ?? "";
       const lines = Array.from(receipt.querySelectorAll("p")).map((node) => node.textContent?.trim() ?? "");
       const paymentLine = lines.find((value) => value.toLowerCase().startsWith("payment:")) ?? "";
       const statusLine = lines.find((value) => value.toLowerCase().startsWith("status:")) ?? "";
       const payment = paymentLine.replace(/^payment:\s*/i, "").split("·")[0].trim();
+      const paymentStatus = paymentLine.split("·")[1]?.trim() ?? "";
       const status = statusLine.replace(/^status:\s*/i, "").trim();
-      return { order, payment, status };
+      return { order, payment, paymentStatus, status };
     }
 
     function directPrint(mode: "receipt" | "tag") {
@@ -59,7 +60,8 @@ export default function AndroidPrintBridge() {
         const meta = receiptMeta();
         if (meta.order) params.set("order", meta.order);
         if (meta.payment) params.set("payment", meta.payment);
-        if (/picked up|archived/i.test(meta.status)) params.set("suppress_drawer", "1");
+        if (meta.paymentStatus) params.set("payment_status", meta.paymentStatus);
+        if (/^(paid|refunded)$/i.test(meta.paymentStatus) || /picked up|archived|cancelled/i.test(meta.status)) params.set("suppress_drawer", "1");
       }
 
       if (window.LaundryLoopNative?.print) {
@@ -68,6 +70,7 @@ export default function AndroidPrintBridge() {
           text,
           order: params.get("order") ?? "",
           payment: params.get("payment") ?? "",
+          payment_status: params.get("payment_status") ?? "",
           suppress_drawer: params.get("suppress_drawer") === "1",
         }));
         return true;

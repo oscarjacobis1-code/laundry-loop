@@ -27,7 +27,7 @@ type Inventory = {
 type Alert = { id: string; requester_email: string; created_at: string; resolved_at: string | null };
 type Summary = { period_days: number; orders: number; revenue: number; average_order_value: number; repeat_customers: number; busiest_hour: number | null; average_hours_to_ready: number | null };
 type Subscription = { subscription_id:string; tracking_code:string; customer_name:string; customer_phone:string; subscription_status:string; payment_status:string; payment_method:string; weekly_pounds:number; extra_pounds:number; credit_balance:number; starts_at:string|null; ends_at:string|null; created_at:string };
-type SupportTicket = { id: string; created_by: string; category: string; description: string; order_code: string | null; status: "open" | "in_progress" | "resolved"; created_at: string };
+type SupportTicket = { id: string; created_by: string; category: string; description: string; order_code: string | null; screenshot_path: string | null; status: "open" | "in_progress" | "resolved"; created_at: string };
 type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "support" | "content" | "services" | "team" | "security";
 type DiscountMode = "amount" | "percent";
 type PosState = { name: string; phone: string; notes: string; paymentMethod: "Cash" | "MMG"; paymentStatus: string; paymentReference: string; discountMode: DiscountMode; discountValue: string };
@@ -99,7 +99,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("orders");
   const [ticketForm, setTicketForm] = useState({ category: "Printing", description: "", orderCode: "" });
+  const [ticketScreenshot, setTicketScreenshot] = useState<File | null>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketImageUrls, setTicketImageUrls] = useState<Record<string, string>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -203,7 +205,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 
   const loadTickets = useCallback(async () => {
     const { data, error } = await supabase.from("staff_support_tickets")
-      .select("id,created_by,category,description,order_code,status,created_at")
+      .select("id,created_by,category,description,order_code,screenshot_path,status,created_at")
       .order("created_at", { ascending: false }).limit(100);
     if (error) setMessage(`Tickets could not be loaded: ${error.message}`);
     else setTickets((data as SupportTicket[]) ?? []);
@@ -215,8 +217,32 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     return () => window.clearTimeout(timer);
   }, [profile, view, loadTickets]);
 
+  async function attachScreenshot(ticketId: string, file: File): Promise<string | null> {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024 || file.size === 0) {
+      return "Choose a PNG, JPEG or WebP image under 5 MB.";
+    }
+    if (!profile || !navigator.onLine) return "Connect to the internet before uploading a screenshot.";
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+    const path = `${profile.user_id}/${ticketId}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("staff-ticket-screenshots")
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) return uploadError.message;
+    const { error: saveError } = await supabase.from("staff_support_tickets")
+      .update({ screenshot_path: path }).eq("id", ticketId);
+    return saveError?.message ?? null;
+  }
+
+  async function openTicketScreenshot(ticket: SupportTicket) {
+    if (!ticket.screenshot_path) return;
+    const { data, error } = await supabase.storage.from("staff-ticket-screenshots")
+      .createSignedUrl(ticket.screenshot_path, 60);
+    if (error) setMessage(`Screenshot could not be opened: ${error.message}`);
+    else setTicketImageUrls(current => ({ ...current, [ticket.id]: data.signedUrl }));
+  }
+
   async function submitTicket(event: FormEvent) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
     if (!navigator.onLine) { setMessage("Connect to the internet before submitting a support ticket."); return; }
     setBusy(true); setMessage("");
     const { data, error } = await supabase.from("staff_support_tickets")
@@ -225,7 +251,13 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     if (error) setMessage(`Ticket was not submitted: ${error.message}`);
     else {
       setTicketForm({ category: "Printing", description: "", orderCode: "" });
-      setMessage(`Ticket ${data.id.slice(0, 8).toUpperCase()} submitted. The administrator can see it now.`);
+      const attachmentError = ticketScreenshot ? await attachScreenshot(data.id, ticketScreenshot) : null;
+      setTicketScreenshot(null);
+      const fileInput = form.querySelector<HTMLInputElement>('input[type="file"]');
+      if (fileInput) fileInput.value = "";
+      setMessage(attachmentError
+        ? `Ticket ${data.id.slice(0, 8).toUpperCase()} submitted, but the screenshot failed: ${attachmentError}. Add it from the ticket below.`
+        : `Ticket ${data.id.slice(0, 8).toUpperCase()} submitted. The administrator can see it now.`);
       await loadTickets();
     }
     setBusy(false);
@@ -809,15 +841,25 @@ export default function Portal({ portal }: { portal: PortalKind }) {
             </select></label>
             <label>Order code (optional)<input value={ticketForm.orderCode} maxLength={20} pattern="[A-Za-z0-9-]{6,20}" onChange={event => setTicketForm({ ...ticketForm, orderCode: event.target.value })} placeholder="e.g. A26AF423"/></label>
             <label className="wide-field">What happened?<textarea value={ticketForm.description} onChange={event => setTicketForm({ ...ticketForm, description: event.target.value })} minLength={10} maxLength={2000} rows={5} required placeholder="What were you doing, and what error appeared?"/></label>
+            <label className="wide-field">Screenshot (optional)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setTicketScreenshot(event.target.files?.[0] ?? null)}/></label>
           </div>
           <button className="primary-wide" type="submit" disabled={busy}>Submit ticket</button>
-          <p className="muted">You can take screenshots on the tablet. Screenshot attachments to tickets will be added later.</p>
+          <p className="muted">PNG, JPEG or WebP, up to 5 MB. Only the reporting staff member and administrators can open the attachment.</p>
         </form>
         <div className="panel"><div className="section-heading"><div><p className="eyebrow">{isAdmin ? "All staff reports" : "Your reports"}</p><h2>Tickets</h2></div></div>
           {tickets.length === 0 && <p className="muted">No tickets yet.</p>}
           <div className="support-list">{tickets.map(ticket => <article className="support-ticket" key={ticket.id}>
             <div><strong>{ticket.category} · {ticket.id.slice(0, 8).toUpperCase()}</strong><small>{dateTime(ticket.created_at)}{ticket.order_code ? ` · Order ${ticket.order_code}` : ""}</small></div>
             <p>{ticket.description}</p>
+            {ticket.screenshot_path && <div className="support-attachment"><button type="button" className="secondary" onClick={() => void openTicketScreenshot(ticket)}>View screenshot</button>{ticketImageUrls[ticket.id] && <a href={ticketImageUrls[ticket.id]} target="_blank" rel="noopener noreferrer">Open image</a>}</div>}
+            {!ticket.screenshot_path && ticket.created_by === profile.user_id && <label>Add screenshot<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={async event => {
+              const file = event.target.files?.[0]; if (!file) return;
+              setBusy(true);
+              const error = await attachScreenshot(ticket.id, file);
+              setMessage(error ? `Screenshot failed: ${error}` : "Screenshot attached to the ticket.");
+              if (!error) await loadTickets();
+              setBusy(false);
+            }}/></label>}
             {isAdmin ? <label>Status<select value={ticket.status} onChange={event => void updateTicketStatus(ticket.id, event.target.value as SupportTicket["status"])}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label> : <span className="badge">{ticket.status.replace("_", " ")}</span>}
           </article>)}</div>
         </div>

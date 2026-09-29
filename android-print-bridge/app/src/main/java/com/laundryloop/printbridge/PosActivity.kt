@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -26,6 +28,7 @@ class PosActivity : AppCompatActivity() {
     private var initialized = false
     private var backgroundedAt = 0L
     private var awaitingCredential = false
+    private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +73,11 @@ class PosActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_FILE) {
+            pendingFileChooser?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
+            pendingFileChooser = null
+            return
+        }
         if (requestCode != REQUEST_UNLOCK) return
         awaitingCredential = false
         if (resultCode == RESULT_OK) initializePos() else finish()
@@ -110,10 +118,31 @@ class PosActivity : AppCompatActivity() {
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             setSupportMultipleWindows(false)
-            userAgentString = "$userAgentString LaundryLoopPOS/2.1"
+            userAgentString = "$userAgentString LaundryLoopPOS/2.2"
         }
 
         webView.addJavascriptInterface(NativePrintBridge(), "LaundryLoopNative")
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                pendingFileChooser?.onReceiveValue(null)
+                pendingFileChooser = filePathCallback
+                return try {
+                    startActivityForResult(fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "image/*"
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                    }, REQUEST_FILE)
+                    true
+                } catch (_: Exception) {
+                    pendingFileChooser?.onReceiveValue(null)
+                    pendingFileChooser = null
+                    false
+                }
+            }
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val uri = request?.url ?: return false
@@ -169,6 +198,7 @@ class PosActivity : AppCompatActivity() {
                         .authority("print")
                         .appendQueryParameter("mode", mode)
                         .appendQueryParameter("text", json.optString("text").take(6000))
+                        .appendQueryParameter("payment_status", json.optString("payment_status").take(60))
                         .apply {
                             json.optString("order").takeIf { it.isNotBlank() }?.let { appendQueryParameter("order", it) }
                             json.optString("payment").takeIf { it.isNotBlank() }?.let { appendQueryParameter("payment", it) }
@@ -208,11 +238,14 @@ class PosActivity : AppCompatActivity() {
                 destroy()
             }
         }
+        pendingFileChooser?.onReceiveValue(null)
+        pendingFileChooser = null
         super.onDestroy()
     }
 
     companion object {
         private const val REQUEST_UNLOCK = 601
+        private const val REQUEST_FILE = 602
         private const val TRUSTED_HOST = "thelaundryloop.net"
         private const val RELOCK_AFTER_MS = 60_000L
     }
