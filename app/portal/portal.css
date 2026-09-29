@@ -281,3 +281,10 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .team-actions{display:flex;gap:8px;flex-wrap:wrap}
 .team-actions button{white-space:nowrap}
 @media (max-width:900px){.staff-create-grid{grid-template-columns:1fr}.team-row{grid-template-columns:1fr}.team-actions{width:100%}}
+
+
+.ticket-upload{display:grid;gap:8px}
+.ticket-upload>span{font-weight:700}
+.ticket-file-button{display:inline-flex!important;align-items:center;justify-content:center;width:max-content;max-width:100%;min-height:44px;padding:10px 16px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;font-weight:800}
+.ticket-file-button input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.ticket-file-button small,.ticket-upload small{color:var(--muted);overflow-wrap:anywhere}
