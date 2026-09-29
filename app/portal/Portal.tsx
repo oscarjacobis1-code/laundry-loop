@@ -479,6 +479,21 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         return;
       }
       const payload = data as FunctionResult | null;
+      const connectorError = error as { message?: string; context?: Response } | null;
+      const networkFailure = Boolean(error && !connectorError?.context);
+      if (networkFailure) {
+        const validOffline = await verifyOfflineCredential(identity, enteredPassword);
+        const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
+        if (validOffline && member) {
+          setProfile({ ...member, active: true });
+          setPassword("");
+          setMessage(codedMessage("LL-OFF-002", "Live sign-in could not reach the server. Signed in using this tablet's saved staff access."));
+        } else {
+          setMessage(codedMessage("LL-OFF-001", "The server could not be reached and offline sign-in has not been set up for this account on this tablet yet."));
+        }
+        setBusy(false);
+        return;
+      }
       if (error || !payload?.session || !payload.user_id || payload.ok === false) {
         setMessage(await functionFailure(data, error, "LL-AUTH-500", "Sign-in could not be completed."));
       } else {
