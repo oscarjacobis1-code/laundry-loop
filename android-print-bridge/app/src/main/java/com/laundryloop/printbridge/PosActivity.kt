@@ -103,11 +103,6 @@ class PosActivity : AppCompatActivity() {
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
-        toolbar.addView(Button(this).apply {
-            text = "Printer"
-            setOnClickListener { startActivity(Intent(this@PosActivity, MainActivity::class.java)) }
-        })
-
         webView = WebView(this)
         webView.settings.apply {
             javaScriptEnabled = true
@@ -181,6 +176,16 @@ class PosActivity : AppCompatActivity() {
     }
 
     inner class NativePrintBridge {
+        @JavascriptInterface
+        fun openPrinterSettings() {
+            runOnUiThread {
+                if (!::webView.isInitialized) return@runOnUiThread
+                val current = Uri.parse(webView.url ?: return@runOnUiThread)
+                if (current.scheme != "https" || current.host != TRUSTED_HOST) return@runOnUiThread
+                startActivity(Intent(this@PosActivity, MainActivity::class.java))
+            }
+        }
+
         @JavascriptInterface
         fun print(payload: String) {
             runOnUiThread {
