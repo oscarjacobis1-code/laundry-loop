@@ -3,7 +3,10 @@ import fs from 'node:fs';
 const path = 'app/portal/Portal.tsx';
 let source = fs.readFileSync(path, 'utf8');
 
-if (source.includes('Cash tender details did not sync')) {
+if (
+  source.includes('Cash tender details did not sync') ||
+  source.includes('void supabase.from("orders").update({ payment: receiptOrder.payment }).eq("id", saved.id)')
+) {
   console.log('Cash tender persistence patch already applied.');
   process.exit(0);
 }
