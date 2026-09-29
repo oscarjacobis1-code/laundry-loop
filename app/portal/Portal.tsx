@@ -604,9 +604,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const sessionId=sessionStorage.getItem("ll-access-session");
     sessionStorage.removeItem("ll-access-session");
     setPassword(""); setAttendancePassword(""); setNewPassword(""); setEmail(""); setProfile(null);
-    // Local sign-out must be immediate. Audit logging is best-effort and must never block staff.
+    // Return to staff home immediately. Finish the old audit session in the background.
+    // Do not call auth.signOut here: a delayed signOut can race a rapid re-login and clear the new session.
     if(sessionId && navigator.onLine) void supabase.rpc("staff_access_logout",{p_session_id:sessionId});
-    void supabase.auth.signOut({ scope: "local" });
   }
 
   async function savePassword(event: FormEvent) {
