@@ -33,7 +33,7 @@ test("staff shell is cacheable for offline relaunch", () => {
   assert.match(worker, /request\.mode === "navigate"/);
 });
 
-test("Android APK launches a locked-down POS with internal printing", () => {
+test("Android APK launches directly into the secured POS with internal printing", () => {
   assert.match(manifest, /android:name="\.PosActivity"/);
   assert.match(manifest, /android\.intent\.category\.LAUNCHER/);
   assert.match(manifest, /android:name="\.MainActivity"[\s\S]*android:exported="false"/);
@@ -42,7 +42,8 @@ test("Android APK launches a locked-down POS with internal printing", () => {
   assert.doesNotMatch(manifest, /android:scheme="laundryloop-print"/);
   assert.match(posActivity, /LaundryLoopPOS\/2\.2/);
   assert.doesNotMatch(posActivity, /FLAG_SECURE/);
-  assert.match(posActivity, /createConfirmDeviceCredentialIntent/);
+  assert.doesNotMatch(posActivity, /createConfirmDeviceCredentialIntent/);
+  assert.match(posActivity, /override fun onCreate[\s\S]*initializePos\(\)/);
   assert.match(posActivity, /LaundryLoopNative/);
   assert.match(posActivity, /MIXED_CONTENT_NEVER_ALLOW/);
 });
