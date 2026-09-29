@@ -248,8 +248,8 @@ const idempotentRpc = [
 '      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode ?? createOfflineTrackingCode(), appCreatedAt, true);',
 '      setBusy(false); posSubmitLock.current = false; return;',
 '    }',
-'    const { data, error } = appTrackingCode',
-'      ? await supabase.rpc("staff_sync_offline_order", {',
+'    const liveOrderRequest = appTrackingCode',
+'      ? supabase.rpc("staff_sync_offline_order", {',
 '          p_client_tracking_code: appTrackingCode,',
 '          p_name: pos.name.trim(),',
 '          p_phone: phoneDigits(pos.phone),',
@@ -260,7 +260,7 @@ const idempotentRpc = [
 '          p_original_transaction_at: appCreatedAt,',
 '          p_express: pos.express,',
 '        })',
-'      : await supabase.rpc("staff_create_order", {',
+'      : supabase.rpc("staff_create_order", {',
 ].join("\n");
 
 replaceOnce(rpcStart, idempotentRpc, "idempotent APK order RPC");
@@ -268,7 +268,11 @@ replaceOnce(rpcStart, idempotentRpc, "idempotent APK order RPC");
 replaceOnce(
   '    if (error) setPosMessage(`The order was not saved: ${error.message}`);\n    else {',
   [
-'    if (error && appTrackingCode && /fetch|network|connection|offline/i.test(error.message || "")) {',
+'    const orderTimeout = new Promise<{ data: null; error: Error }>((resolve) =>',
+'      window.setTimeout(() => resolve({ data: null, error: new Error("LL_ORDER_NETWORK_TIMEOUT") }), 5000),',
+'    );',
+'    const { data, error } = await Promise.race([liveOrderRequest, orderTimeout]);',
+'    if (error && appTrackingCode && /fetch|network|connection|offline|LL_ORDER_NETWORK_TIMEOUT/i.test(error.message || "")) {',
 '      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode, appCreatedAt, true);',
 '    } else if (error) {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
