@@ -41,7 +41,7 @@ replaceOnce(
 
 replaceOnce(
   '    if (orderResult.error) setMessage(orderResult.error.message);\n    setOrders((orderResult.data as Order[]) ?? []);\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    setServices(loadedServices);',
-  '    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);\n    const loadedOrders = (orderResult.data as Order[]) ?? [];\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    if (loadedOrders.length) { setOrders(loadedOrders); cacheOrders(loadedOrders as unknown as Record<string, unknown>[]); }\n    else if (!navigator.onLine) setOrders(readCachedOrders() as unknown as Order[]);\n    if (loadedServices.length) { setServices(loadedServices); cacheServices(loadedServices); }\n    else if (!navigator.onLine) setServices(readCachedServices() as Service[]);',
+  '    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);\n    const loadedOrders = (orderResult.data as Order[]) ?? [];\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    if (orderResult.data) { setOrders(loadedOrders); cacheOrders(loadedOrders as unknown as Record<string, unknown>[]); }\n    else if (!navigator.onLine) setOrders(readCachedOrders() as unknown as Order[]);\n    if (serviceResult.data) { setServices(loadedServices); cacheServices(loadedServices); }\n    else if (!navigator.onLine) setServices(readCachedServices() as Service[]);',
   "dashboard offline cache",
 );
 
