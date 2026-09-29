@@ -424,3 +424,35 @@
 @media(prefers-reduced-motion:reduce){
   .tracking-arc-progress,.tracking-stage-node .stage-icon{transition:none}
 }
+
+/* 2026-09-29 mobile tracker geometry polish */
+@media(max-width:600px){
+  .tracking-panel{padding-top:14px}
+  .tracking-brand{min-height:54px}
+  .tracking-logo{height:52px}
+  .tracking-title-block h3{margin:2px 0 10px}
+  .tracking-search-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .tracking-search .field{flex:1 1 100%;width:100%}
+  .tracking-search .btn{width:auto;min-width:0;padding-left:24px;padding-right:24px;margin:0 auto}
+  .tracking-dashboard{margin-top:10px}
+  .tracking-visual{height:330px}
+  .tracking-arc-wrap{width:390px;height:270px;top:72px}
+  .tracking-gauge-center{top:153px}
+  .stage-received{left:14%;top:61%}
+  .stage-processing{left:24%;top:25%}
+  .stage-washing{left:50%;top:7%}
+  .stage-drying{left:76%;top:25%}
+  .stage-ready{left:86%;top:61%}
+  .connector-one{left:18%;top:47%}
+  .connector-two{left:35%;top:17%}
+  .connector-three{right:35%;top:17%}
+  .connector-four{right:18%;top:47%}
+  .tracking-current-status{margin-top:-8px}
+}
+@media(max-width:410px){
+  .tracking-visual{height:315px}
+  .tracking-arc-wrap{width:365px;height:255px;top:70px}
+  .tracking-gauge-center{top:148px}
+  .stage-received{left:15%;top:61%}
+  .stage-ready{left:85%;top:61%}
+}
