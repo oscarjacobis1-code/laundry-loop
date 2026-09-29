@@ -4,7 +4,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createPortalSupabase } from "./supabase";
 import {
+  cacheOrders,
   cacheProfile,
+  cacheServices,
   cacheStaffDirectory,
   isLaundryLoopApp,
   provisionOfflineCredential,
@@ -117,11 +119,11 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [ticketImageUrls, setTicketImageUrls] = useState<Record<string, string>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => portal === "staff" && isLaundryLoopApp() ? readCachedOrders() as unknown as Order[] : []);
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [completedSearch, setCompletedSearch] = useState("");
   const [completedBusy, setCompletedBusy] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>(() => portal === "staff" && isLaundryLoopApp() ? readCachedServices() as Service[] : []);
   const [serviceForm, setServiceForm] = useState({ name: "", category: "", rate: "", unit: "lb", active: true });
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -212,10 +214,21 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       supabase.rpc("staff_operations_summary", { p_days: summaryDays }),
       supabase.rpc("staff_subscription_summary"),
     ]);
-    if (orderResult.error) setMessage(orderResult.error.message);
-    setOrders((orderResult.data as Order[]) ?? []);
+    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);
+    const loadedOrders = (orderResult.data as Order[]) ?? [];
     const loadedServices = (serviceResult.data as Service[]) ?? [];
-    setServices(loadedServices);
+    if (orderResult.data) {
+      setOrders(loadedOrders);
+      if (portal === "staff") cacheOrders(loadedOrders as unknown as Record<string, unknown>[]);
+    } else if (portal === "staff" && isLaundryLoopApp()) {
+      setOrders(readCachedOrders() as unknown as Order[]);
+    }
+    if (serviceResult.data) {
+      setServices(loadedServices);
+      if (portal === "staff") cacheServices(loadedServices);
+    } else if (portal === "staff" && isLaundryLoopApp()) {
+      setServices(readCachedServices() as Service[]);
+    }
     const firstActive = loadedServices.find((service) => service.active);
     const defaultPosService = loadedServices.find((service) => service.active && service.name.trim().toLowerCase() === "regular laundry") ?? firstActive;
     if (defaultPosService) {
