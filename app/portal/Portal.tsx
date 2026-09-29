@@ -9,6 +9,8 @@ import {
   isLaundryLoopApp,
   provisionOfflineCredential,
   queueOfflineAttendance,
+  readCachedOrders,
+  readCachedServices,
   readCachedStaffDirectory,
   readQueuedOfflineAttendance,
   removeQueuedOfflineAttendance,
@@ -452,6 +454,15 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [pos.discountMode, pos.discountValue, posSubtotal, profile?.role]);
   const posTotal = Math.max(0, posSubtotal - posDiscount);
 
+  function openOfflineStaffSession(member: StaffDirectoryEntry, notice: string) {
+    setProfile({ ...member, active: true });
+    setServices(readCachedServices() as Service[]);
+    setOrders(readCachedOrders() as unknown as Order[]);
+    setPassword("");
+    setView("orders");
+    setMessage(codedMessage("LL-OFF-002", notice));
+  }
+
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
     if (portal === "staff") {
@@ -466,9 +477,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         if (!validOffline || !member) {
           setMessage(codedMessage("LL-OFF-001", "Offline sign-in is not available for this account on this tablet yet. Connect to the internet and sign in once first."));
         } else {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Signed in offline. Attendance will sync when this account next connects."));
+          openOfflineStaffSession(member, "Signed in offline. Showing the last orders and services saved on this tablet. New offline orders will sync when internet returns.");
         }
         setBusy(false);
         return;
@@ -491,9 +500,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         const validOffline = await verifyOfflineCredential(identity, enteredPassword);
         const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
         if (validOffline && member) {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Internet is unavailable. Signed in using this tablet's saved staff access."));
+          openOfflineStaffSession(member, "Internet is unavailable. Showing the last orders and services saved on this tablet.");
         } else {
           setMessage(codedMessage("LL-OFF-001", "Internet is unavailable and offline sign-in has not been set up for this account on this tablet yet."));
         }
@@ -507,9 +514,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         const validOffline = await verifyOfflineCredential(identity, enteredPassword);
         const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
         if (validOffline && member) {
-          setProfile({ ...member, active: true });
-          setPassword("");
-          setMessage(codedMessage("LL-OFF-002", "Live sign-in could not reach the server. Signed in using this tablet's saved staff access."));
+          openOfflineStaffSession(member, "Live sign-in could not reach the server. Showing the last orders and services saved on this tablet.");
         } else {
           setMessage(codedMessage("LL-OFF-001", "The server could not be reached and offline sign-in has not been set up for this account on this tablet yet."));
         }
