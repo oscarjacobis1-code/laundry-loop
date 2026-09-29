@@ -452,13 +452,32 @@ export default function Portal({ portal }: { portal: PortalKind }) {
         return;
       }
       const enteredPassword = password;
-      const { data, error } = await supabase.functions.invoke("staff-login-directory", {
+      // Android/WebView can report navigator.onLine=true even when the internet is unreachable.
+      // Give the live login only a short chance, then fall back to the provisioned local credential.
+      const loginAttempt = supabase.functions.invoke("staff-login-directory", {
         body: {
           action: "login",
           user_id: identity,
           password,
         },
       });
+      const timeout = new Promise<{ data: null; error: Error }>((resolve) =>
+        window.setTimeout(() => resolve({ data: null, error: new Error("LL_NETWORK_TIMEOUT") }), 3500),
+      );
+      const { data, error } = await Promise.race([loginAttempt, timeout]);
+      if ((error as Error | null)?.message === "LL_NETWORK_TIMEOUT") {
+        const validOffline = await verifyOfflineCredential(identity, enteredPassword);
+        const member = staffDirectory.find((item) => item.user_id === identity) ?? readCachedStaffDirectory().find((item) => item.user_id === identity);
+        if (validOffline && member) {
+          setProfile({ ...member, active: true });
+          setPassword("");
+          setMessage(codedMessage("LL-OFF-002", "Internet is unavailable. Signed in using this tablet's saved staff access."));
+        } else {
+          setMessage(codedMessage("LL-OFF-001", "Internet is unavailable and offline sign-in has not been set up for this account on this tablet yet."));
+        }
+        setBusy(false);
+        return;
+      }
       const payload = data as FunctionResult | null;
       if (error || !payload?.session || !payload.user_id || payload.ok === false) {
         setMessage(await functionFailure(data, error, "LL-AUTH-500", "Sign-in could not be completed."));
