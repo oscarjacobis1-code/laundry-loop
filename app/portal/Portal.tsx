@@ -6,6 +6,7 @@ import { createPortalSupabase } from "./supabase";
 import {
   cacheProfile,
   cacheStaffDirectory,
+  isLaundryLoopApp,
   provisionOfflineCredential,
   queueOfflineAttendance,
   readCachedStaffDirectory,
@@ -105,7 +106,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [newPassword, setNewPassword] = useState("");
   const [recovery, setRecovery] = useState(false);
   const [recoveryRequested, setRecoveryRequested] = useState(false);
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(() => !(portal === "staff" && isLaundryLoopApp()));
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("orders");
   const [ticketForm, setTicketForm] = useState({ category: "Printing", description: "", orderCode: "" });
@@ -136,7 +137,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [inventoryForm, setInventoryForm] = useState({ itemId: "", type: "restock", quantity: "", unitCost: "", note: "" });
   const [inventoryItemForm, setInventoryItemForm] = useState({ name: "", unit: "", reorderLevel: "", openingStock: "" });
   const [identity, setIdentity] = useState("");
-  const [staffDirectory, setStaffDirectory] = useState<StaffDirectoryEntry[]>([]);
+  const [staffDirectory, setStaffDirectory] = useState<StaffDirectoryEntry[]>(() => portal === "staff" ? readCachedStaffDirectory() : []);
   const [attendanceMode, setAttendanceMode] = useState<"in"|"out">("in");
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [accessSessions, setAccessSessions] = useState<AccessSession[]>([]);
@@ -154,6 +155,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const canManageServices = profile?.role === "manager" || isAdmin;
 
   const loadStaffDirectory = useCallback(async () => {
+    if (!navigator.onLine) {
+      const cached = readCachedStaffDirectory();
+      if (cached.length) {
+        setStaffDirectory(cached);
+        setMessage("Offline mode: using the saved staff list.");
+      } else {
+        setMessage("Connect once so this tablet can save the authorized staff list.");
+      }
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("staff-login-directory", { body: { action: "list" } });
     if (error) {
       const cached = readCachedStaffDirectory();
@@ -358,13 +369,24 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   }, [loadStaffDirectory, portal]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => { if (data.session) await validateRole(data.session.user.id); setBusy(false); });
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       if (event === "SIGNED_OUT") setProfile(null);
     });
+
+    if (portal === "staff" && isLaundryLoopApp()) {
+      // The counter app must never hold the login screen behind a cloud session check.
+      // Staff authentication is explicit: online login when connected, saved verifier when offline.
+      setBusy(false);
+      return () => listener.subscription.unsubscribe();
+    }
+
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) await validateRole(data.session.user.id);
+      setBusy(false);
+    });
     return () => listener.subscription.unsubscribe();
-  }, [supabase, validateRole]);
+  }, [portal, supabase, validateRole]);
 
   useEffect(()=>{
     if(!profile||portal!=="staff")return;
