@@ -123,6 +123,18 @@ test("package checkout logs in returning customers before attempting signup", ()
   assert.match(publicHtml, /laundry-loop\.production\.js\?v=20260930-1/);
 });
 
+test("customer account creation gives clear duplicate and success feedback", () => {
+  assert.match(production, /Account created successfully\. You are now signed in\./);
+  assert.match(production, /An account already exists for that phone number\. Log in instead\./);
+  assert.match(production, /accountWasCreated = true/);
+  assert.match(production, /existingAccountUsed = true/);
+  assert.match(production, /You were signed in to your existing account and your package request was submitted/);
+  assert.match(publicHtml, /id="account-status-message"/);
+  assert.match(publicHtml, /id="invest-success-title"/);
+  assert.match(publicHtml, /id="invest-success-message"/);
+  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20260930-2/);
+});
+
 test("subscription requests activate after payment and expose account allowance", () => {
   assert.match(production, /create_subscription_request/);
   assert.match(production, /customer_account_summary/);
