@@ -369,8 +369,14 @@
       updateAccountNavButton();
       closeModal('auth-modal');
       showView('view-account');
-    } catch {
-      showError(errorBox, 'No account matches that phone number and passcode.');
+    } catch (error) {
+      const message = String(error?.message || '');
+      showError(
+        errorBox,
+        message.toLowerCase().includes('invalid credentials')
+          ? 'The phone number or passcode is incorrect.'
+          : `Login could not be completed. ${message || 'Please try again.'}`
+      );
     }
   };
 
@@ -526,7 +532,25 @@
     try {
       let token = sessionStorage.getItem(SESSION_KEY);
       if (!CURRENT_USER || !token) {
-        const account = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
+        // Checkout supports both returning and first-time customers.
+        // Try the supplied passcode as a login first; only create an account
+        // when the phone number does not already have valid credentials.
+        let account;
+        try {
+          account = await rpc('customer_login', { p_phone: phone, p_passcode: passcode });
+        } catch (loginError) {
+          const loginMessage = String(loginError?.message || '');
+          if (!loginMessage.toLowerCase().includes('invalid credentials')) throw loginError;
+          try {
+            account = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
+          } catch (signupError) {
+            const signupMessage = String(signupError?.message || '');
+            if (signupMessage.toLowerCase().includes('already exists')) {
+              throw new Error('This phone number already has an account, but that passcode does not match. Use your existing passcode or reset it from Log In.');
+            }
+            throw signupError;
+          }
+        }
         token = account.session_token;
         sessionStorage.setItem(SESSION_KEY, token);
         resetCustomerIdleTimer();
@@ -555,7 +579,8 @@
       if (whatsappWindow) whatsappWindow.location.href=`https://wa.me/${String(phone).replace(/\D/g,'').replace(/^0?([0-9]{7})$/,'592$1')}?text=${encodeURIComponent(confirmation)}`;
     } catch (error) {
       if (whatsappWindow) whatsappWindow.close();
-      alert(error.message.includes('already') ? 'An account already exists for this phone number. Log in first, then choose the plan again.' : error.message);
+      const message = String(error?.message || '');
+      alert(message || 'We could not complete the package checkout. Please try again.');
     } finally {
       planSubmissionInFlight = false;
     }
