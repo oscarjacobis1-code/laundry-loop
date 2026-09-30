@@ -716,6 +716,7 @@
         </div>
         <button onclick="logOut()" class="btn btn-outline text-[12px] px-4 py-2">Log Out</button>
       </div>
+      <div id="account-status-message" class="hidden panel p-4 mb-5 text-[13px] font-medium" style="background:#ECFDF5; border:1px solid #A7F3D0; color:#065F46;" role="status"></div>
       <div id="account-subscription" class="hidden panel p-6 mb-5"></div>
       <div id="account-orders-list" class="space-y-4"></div>
     </div>
@@ -830,8 +831,8 @@
 
       <div id="step-invest-success" class="hidden space-y-4 text-center">
         <div class="p-6">
-          <h3 class="font-display font-semibold text-2xl text-stone-900 mb-2">Welcome to The Laundry Loop!</h3>
-          <p class="text-[13px] text-stone-600 mb-4">Thank you for subscribing. Your request is being processed and staff will confirm your active subscription after payment is verified.</p>
+          <h3 id="invest-success-title" class="font-display font-semibold text-2xl text-stone-900 mb-2">Package request submitted</h3>
+          <p id="invest-success-message" class="text-[13px] text-stone-600 mb-4">Your request is being processed and staff will confirm your active subscription after payment is verified.</p>
           <div class="p-4" style="background:var(--paper); border:1px dashed var(--line);">
             <p class="text-[11px] uppercase tracking-widest text-stone-500 mb-1">Order Tracking Code</p>
             <div class="flex items-center justify-center gap-2"><div id="acc-backup-code" class="text-2xl font-mono font-medium tracking-widest text-stone-800"></div><button type="button" id="subscription-copy-button" onclick="copyCode(document.getElementById('acc-backup-code').textContent, this)" class="btn btn-outline px-3 py-1.5 text-[11px]">Copy</button></div>
@@ -2180,6 +2181,6 @@
   updateAccountNavButton();
 </script>
 <!-- Production data/authentication layer. Run supabase-schema.sql first. -->
-<script src="./laundry-loop.production.js?v=20260930-1"></script>
+<script src="./laundry-loop.production.js?v=20260930-2"></script>
 </body>
 </html>
