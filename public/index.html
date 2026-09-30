@@ -791,7 +791,7 @@
 
       <div id="step-invest-account" class="hidden space-y-4">
         <div class="p-3.5 text-[12px] leading-relaxed" style="background:#F0F4F2; border:1px solid #D4E0D9; color:#3F5E4E;">
-          Please enter your details to create your account.
+          Enter your details to continue. If this number already has an account, use its existing passcode. Otherwise, we’ll create a new account.
         </div>
         
         <div id="invest-mmg-alert" class="hidden p-3.5 text-[12px] leading-relaxed mb-4" style="background:#FFFBEB; border:1px solid #FEF3C7; color:#92400E;">
@@ -823,7 +823,7 @@
             <label class="field-label">Password *</label>
             <input type="password" id="acc-pass" required minlength="6" maxlength="72" placeholder="At least 6 characters" class="field font-mono">
           </div>
-          <button type="submit" class="btn btn-primary w-full py-3 text-[13px] mt-2">Submit & Create Account</button>
+          <button type="submit" class="btn btn-primary w-full py-3 text-[13px] mt-2">Continue</button>
           <button type="button" onclick="document.getElementById('step-invest-account').classList.add('hidden'); document.getElementById('step-choose-pay').classList.remove('hidden');" class="btn btn-outline w-full py-2.5 text-[12px]">Back to Payment Choice</button>
         </form>
       </div>
@@ -2180,6 +2180,6 @@
   updateAccountNavButton();
 </script>
 <!-- Production data/authentication layer. Run supabase-schema.sql first. -->
-<script src="./laundry-loop.production.js?v=20260928-1"></script>
+<script src="./laundry-loop.production.js?v=20260930-1"></script>
 </body>
 </html>
