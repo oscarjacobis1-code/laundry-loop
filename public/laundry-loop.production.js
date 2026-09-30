@@ -28,6 +28,12 @@
     element.textContent = message;
     element.classList.remove('hidden');
   };
+  const showAccountNotice = (message) => {
+    const notice = document.getElementById('account-status-message');
+    if (!notice) return;
+    notice.textContent = message;
+    notice.classList.remove('hidden');
+  };
   const cleanPayment = (payment = {}) => ({
     method: payment.method || 'Cash',
     status: payment.status || 'Pay at Pickup',
@@ -345,12 +351,19 @@
       sessionStorage.setItem(SESSION_KEY, result.session_token);
       resetCustomerIdleTimer();
       CURRENT_USER = { id: result.customer_id, name: result.name, phone: result.phone };
-      if (result.recovery_code) alert(`Account created. Save this recovery code somewhere private: ${result.recovery_code}`);
+      if (result.recovery_code) alert(`Account created successfully. Save this recovery code somewhere private: ${result.recovery_code}`);
       updateAccountNavButton();
       closeModal('auth-modal');
       showView('view-account');
+      showAccountNotice('Account created successfully. You are now signed in.');
     } catch (error) {
-      showError(errorBox, error.message.includes('already') ? 'An account already exists for that phone number.' : error.message);
+      const message = String(error?.message || '');
+      showError(
+        errorBox,
+        message.toLowerCase().includes('already')
+          ? 'An account already exists for that phone number. Log in instead.'
+          : message || 'We could not create the account. Please try again.'
+      );
     }
   };
 
@@ -529,6 +542,8 @@
     const passcode = document.getElementById('acc-pass').value;
     const whatsappWindow = window.open('', '_blank');
     planSubmissionInFlight = true;
+    let accountWasCreated = false;
+    let existingAccountUsed = false;
     try {
       let token = sessionStorage.getItem(SESSION_KEY);
       if (!CURRENT_USER || !token) {
@@ -538,11 +553,13 @@
         let account;
         try {
           account = await rpc('customer_login', { p_phone: phone, p_passcode: passcode });
+          existingAccountUsed = true;
         } catch (loginError) {
           const loginMessage = String(loginError?.message || '');
           if (!loginMessage.toLowerCase().includes('invalid credentials')) throw loginError;
           try {
             account = await rpc('customer_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
+            accountWasCreated = true;
           } catch (signupError) {
             const signupMessage = String(signupError?.message || '');
             if (signupMessage.toLowerCase().includes('already exists')) {
@@ -575,6 +592,16 @@
       document.getElementById('acc-backup-code').innerText = row.tracking_code;
       document.getElementById('step-invest-account').classList.add('hidden');
       document.getElementById('step-invest-success').classList.remove('hidden');
+      const successTitle = document.getElementById('invest-success-title');
+      const successMessage = document.getElementById('invest-success-message');
+      if (successTitle) successTitle.textContent = accountWasCreated ? 'Account created successfully' : 'Package request submitted';
+      if (successMessage) {
+        successMessage.textContent = accountWasCreated
+          ? 'Your Laundry Loop account was created and your package request was submitted. Staff will confirm the subscription after payment is verified.'
+          : existingAccountUsed
+            ? 'You were signed in to your existing account and your package request was submitted. Staff will confirm the subscription after payment is verified.'
+            : 'Your package request was submitted. Staff will confirm the subscription after payment is verified.';
+      }
       const confirmation=`Thank you for choosing The Laundry Loop. Your subscription request ${row.tracking_code} is being processed. You will receive a message shortly confirming your active subscription.`;
       if (whatsappWindow) whatsappWindow.location.href=`https://wa.me/${String(phone).replace(/\D/g,'').replace(/^0?([0-9]{7})$/,'592$1')}?text=${encodeURIComponent(confirmation)}`;
     } catch (error) {
