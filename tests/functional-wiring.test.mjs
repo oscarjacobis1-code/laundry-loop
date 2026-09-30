@@ -110,6 +110,19 @@ test("logout clears credentials and customer recovery invalidates old sessions",
   assert.match(subscriptionMigration, /delete from public\.customer_sessions/);
 });
 
+test("package checkout logs in returning customers before attempting signup", () => {
+  assert.match(production, /Checkout supports both returning and first-time customers/);
+  const checkoutMarker = production.indexOf("Checkout supports both returning and first-time customers");
+  const checkoutSlice = production.slice(checkoutMarker, checkoutMarker + 2600);
+  const loginIndex = checkoutSlice.indexOf("rpc('customer_login'");
+  const signupIndex = checkoutSlice.indexOf("rpc('customer_signup'");
+  assert.ok(loginIndex >= 0, "returning-customer login call");
+  assert.ok(signupIndex > loginIndex, "signup only happens after login rejects the credentials");
+  assert.match(checkoutSlice, /already has an account, but that passcode does not match/);
+  assert.match(publicHtml, /If this number already has an account, use its existing passcode/);
+  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20260930-1/);
+});
+
 test("subscription requests activate after payment and expose account allowance", () => {
   assert.match(production, /create_subscription_request/);
   assert.match(production, /customer_account_summary/);
