@@ -456,3 +456,96 @@
   .stage-received{left:15%;top:61%}
   .stage-ready{left:85%;top:61%}
 }
+
+/* Tracking dialog: keep the milestones outside the progress dial. */
+.tracking-panel{
+  width:min(94vw,880px);
+  padding:24px;
+  border-radius:18px;
+}
+.tracking-topbar{
+  display:grid;
+  grid-template-columns:84px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  align-items:center;
+  gap:14px 20px;
+  padding-right:48px;
+}
+.tracking-brand{min-height:0;padding:0;justify-content:flex-start}
+.tracking-logo{width:84px;height:72px;object-fit:contain}
+.tracking-title-block{display:contents}
+.tracking-title-block h3{
+  grid-column:2;
+  margin:0;
+  font:600 clamp(2.25rem,5vw,3.4rem)/1 'Cormorant Garamond',Georgia,serif;
+  letter-spacing:-.025em;
+}
+.tracking-search{grid-column:1/-1}
+.tracking-search-row{grid-template-columns:minmax(0,1fr) 165px;gap:10px}
+.tracking-search .field,.tracking-search .btn{height:52px}
+.tracking-search .field{font:500 15px/1.2 'IBM Plex Mono',monospace;letter-spacing:.015em}
+.tracking-search .btn{width:100%;font:600 15px/1 'Outfit',sans-serif;box-shadow:none}
+.tracking-result{margin-top:14px}
+.tracking-dashboard{background:#fbfdff;padding:18px 12px 20px}
+.tracking-dashboard:before{display:none}
+.tracking-visual{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  grid-template-rows:90px;
+  width:min(100%,760px);
+  height:450px;
+}
+.tracking-stage-node{
+  position:relative;
+  left:auto!important;
+  top:auto!important;
+  width:auto;
+  transform:none;
+  font:600 12px/1.15 'Outfit',sans-serif;
+}
+.tracking-stage-node .stage-icon{width:54px;height:54px;margin:0 auto 7px;border-width:2px;box-shadow:none}
+.tracking-stage-node .stage-icon svg{width:29px;height:29px}
+.tracking-stage-node.current .stage-icon{box-shadow:0 0 0 4px rgba(21,146,228,.12)}
+.tracking-stage-connector{display:none}
+.tracking-arc-wrap{
+  width:min(100%,620px);
+  height:auto;
+  aspect-ratio:620/355;
+  top:123px;
+}
+.tracking-pointer-bubble{r:12;stroke-width:4}
+.tracking-pointer-hanger{display:none}
+.tracking-gauge-center{top:245px}
+.tracking-infinity{width:68px;height:68px;font-size:45px;box-shadow:none}
+.tracking-gauge-center strong{font-size:52px}
+.tracking-gauge-center span{font-size:15px;letter-spacing:.06em}
+.tracking-current-status{margin:0 auto 16px}
+.tracking-current-status h4{font:600 27px/1 'Cormorant Garamond',Georgia,serif}
+@media(max-width:600px){
+  .tracking-panel{width:calc(100vw - 24px);max-height:calc(100dvh - 36px);padding:16px;border-radius:16px}
+  .tracking-close{top:9px;right:10px}
+  .tracking-topbar{grid-template-columns:60px minmax(0,1fr);grid-template-rows:auto auto;gap:8px 12px;padding-right:30px}
+  .tracking-logo{width:60px;height:60px}
+  .tracking-title-block h3{font-size:clamp(1.9rem,9vw,2.5rem);line-height:.95}
+  .tracking-search-row{grid-template-columns:minmax(0,1fr);gap:8px}
+  .tracking-search .field,.tracking-search .btn{height:48px}
+  .tracking-dashboard{margin-top:10px;padding:14px 8px 16px}
+  .tracking-visual{grid-template-rows:83px;height:280px}
+  .tracking-stage-node{font-size:10px;line-height:1.1}
+  .tracking-stage-node .stage-icon{width:40px;height:40px;margin-bottom:5px;border-width:2px}
+  .tracking-stage-node .stage-icon svg{width:22px;height:22px}
+  .tracking-arc-wrap{width:calc(100% - 14px);height:auto;top:101px}
+  .tracking-arc-track,.tracking-arc-progress{stroke-width:28}
+  .tracking-gauge-center{top:164px;width:170px}
+  .tracking-infinity{display:none}
+  .tracking-gauge-center strong{font-size:42px}
+  .tracking-gauge-center span{font-size:12px;margin-top:4px}
+  .tracking-current-status{margin:0 auto 14px;padding:13px}
+  .tracking-current-status h4{font-size:25px}
+}
+@media(max-width:390px){
+  .tracking-stage-node{font-size:9px}
+  .tracking-stage-node .stage-icon{width:36px;height:36px}
+  .tracking-visual{height:265px}
+  .tracking-gauge-center{top:157px}
+}
