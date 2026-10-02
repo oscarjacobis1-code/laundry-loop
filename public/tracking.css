@@ -521,6 +521,7 @@
 .tracking-gauge-center span{font-size:15px;letter-spacing:.06em}
 .tracking-current-status{margin:0 auto 16px}
 .tracking-current-status h4{font:600 27px/1 'Cormorant Garamond',Georgia,serif}
+.tracking-wave{display:none}
 @media(max-width:600px){
   .tracking-panel{width:calc(100vw - 24px);max-height:calc(100dvh - 36px);padding:16px;border-radius:16px}
   .tracking-close{top:9px;right:10px}
