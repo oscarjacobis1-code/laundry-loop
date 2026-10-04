@@ -1,0 +1,35 @@
+name: One-time hero CTA update
+
+on:
+  push:
+    paths:
+      - '.github/workflows/one-time-hero-deals.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-hero-cta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Change estimate CTA to deals CTA
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('public/index.html')
+          text = path.read_text()
+          old = '<button onclick="scrollToDropoff()" class="btn btn-outline estimate-link text-[13px]">Get an Instant Estimate <span class="ml-3">↗</span></button>'
+          new = '<button onclick="showView(\'view-services\')" class="btn btn-outline estimate-link text-[13px]">See Our Deals <span class="ml-3">↗</span></button>'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one matching CTA, found {count}')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/index.html
+          git commit -m "Point hero deals CTA to services"
+          git push
