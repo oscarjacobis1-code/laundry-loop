@@ -2,7 +2,7 @@
 
 > The Laundry Loop is a laundromat and laundry-care business in La Parfait Harmonie, West Bank Demerara, Guyana.
 
-Canonical website: https://thelaundryloop.net/index.html
+Canonical website: https://thelaundryloop.net/
 Location: 1181 La Parfait Harmonie, West Bank Demerara, Guyana
 Map: https://maps.app.goo.gl/bLhw3EexXEfnfAVGA
 Tagline: Clean Clothes. Fresh Start.
@@ -36,4 +36,13 @@ Customers can:
 
 Final prices for weight-based orders are confirmed after weighing. Public business information on the website should be treated as the current source of truth.
 
-Last updated: 2026-09-24
+Last updated: 2026-10-03
+
+
+## Entity and discovery notes
+
+- Business type: laundromat / laundry service.
+- Primary location: La Parfait Harmonie, West Bank Demerara, Guyana.
+- Currency: Guyana dollar (GYD).
+- Customers can use the public website for service information, estimates, ordering and order tracking.
+- Private staff, admin and operations areas are not public business-information sources.
