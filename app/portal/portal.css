@@ -244,7 +244,7 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 
 @media(max-width:680px){.ops-main{padding:19px 13px 50px}
 .staff-entry-grid{grid-template-columns:1fr}.identity-grid{grid-template-columns:1fr 1fr}.staff-entry{place-items:start center}.staff-welcome>h1{font-size:2.35rem}
-.top-actions .live-dot,.top-actions .sync-cloud{display:none}
+.top-actions .live-dot{display:none}
 .toolbar{grid-template-columns:1fr 1fr}
 .toolbar input{grid-column:1/-1}
 .queue-summary{grid-template-columns:1fr 1fr}
