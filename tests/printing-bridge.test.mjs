@@ -26,7 +26,7 @@ test("direct bridge prefers the in-app native interface and keeps Chrome printer
   assert.match(bridge, /params\.set\("order", meta\.order\)/);
   assert.match(bridge, /params\.set\("payment", meta\.payment\)/);
   assert.match(bridge, /payment_status", meta\.paymentStatus/);
-  assert.match(bridge, /\^\(paid\|refunded\)\$/);
+  assert.match(bridge, /\^refunded\$/);
   assert.match(bridge, /suppress_drawer/);
   assert.match(bridge, /intent:\/\/print/);
   assert.match(bridge, /package=\$\{packageName\}/);
@@ -55,7 +55,7 @@ test("Android app sanitizes, styles and protects drawer pulses", () => {
   assert.match(mainActivity, /MAX_INPUT_CHARS/);
   assert.match(mainActivity, /suppressDrawer/);
   assert.match(mainActivity, /payment == "cash"/);
-  assert.match(mainActivity, /paymentStatus !in setOf\("paid", "refunded"\)/);
+  assert.match(mainActivity, /paymentStatus != "refunded"/);
   assert.match(mainActivity, /!wasPrinted\(order\)/);
   assert.match(mainActivity, /writeStyledReceipt/);
   assert.match(mainActivity, /byteArrayOf\(0x1D, 0x21, 0x10\)/);
