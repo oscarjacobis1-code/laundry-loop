@@ -214,6 +214,9 @@ test("weight quantity input does not clamp partial typing", async () => {
   assert.ok(guard.includes('input.min = "0.5"'));
   assert.ok(!guard.includes('current > 0 && current < MIN_WEIGHT_LB'));
   assert.ok(guard.includes('data' ) || guard.includes('dataset.minimumWeightTotal'));
+  assert.match(portal, /qty: Number\(e\.target\.value\)/);
+  assert.doesNotMatch(portal, /Math\.max\(5,\s*Number\(e\.target\.value\)\)/);
+  assert.doesNotMatch(portal, /Number\(e\.target\.value\).*<\s*5.*5/);
 });
 
 
