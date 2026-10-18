@@ -248,5 +248,5 @@ test("cash tender details are persisted by the staff order RPC", async () => {
 
 test("POS service worker cache was rotated after auth hardening", async () => {
   const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  assert.match(worker, /laundry-loop-pos-v3/);
+  assert.match(worker, /laundry-loop-pos-v4/);
 });
