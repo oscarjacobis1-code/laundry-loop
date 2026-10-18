@@ -662,7 +662,17 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     if (portal === "admin" || profile?.role === "admin") {
       // Admin logout must invalidate the persisted Supabase session so reopening
       // either the admin portal or the Android POS requires authentication again.
-      await supabase.auth.signOut({ scope: "local" });
+      // The Android POS stores auth in WebView localStorage for staff continuity,
+      // so explicitly remove the portal auth key as a fail-safe for admin logout.
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } finally {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(`laundry-loop-${portal}-auth-v2`);
+          window.sessionStorage.removeItem(`laundry-loop-${portal}-auth-v2`);
+          if (isLaundryLoopApp()) window.location.replace("/staff?app=1&signedout=1");
+        }
+      }
       return;
     }
 
