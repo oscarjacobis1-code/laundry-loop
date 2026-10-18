@@ -235,3 +235,18 @@ test("public tracker matches the branded semi-circle dashboard and has one owner
 test("tracker explains that stage progress and pickup ETA are separate", () => {
   assert.match(publicHtml, /pickup time is calculated separately/);
 });
+
+
+test("cash tender details are persisted by the staff order RPC", async () => {
+  const migration = await readFile(new URL("../supabase/migrations/20261018224300_persist_cash_tender_in_staff_order.sql", import.meta.url), "utf8");
+  const persistPatch = await readFile(new URL("../scripts/persist-cash-tender.mjs", import.meta.url), "utf8");
+  assert.match(migration, /cash_received/);
+  assert.match(migration, /change_due/);
+  assert.match(migration, /Cash received cannot be less than the order total/);
+  assert.doesNotMatch(persistPatch, /from\("orders"\)\.update/);
+});
+
+test("POS service worker cache was rotated after auth hardening", async () => {
+  const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(worker, /laundry-loop-pos-v3/);
+});
