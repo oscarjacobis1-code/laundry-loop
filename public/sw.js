@@ -1,4 +1,4 @@
-const CACHE_NAME = "laundry-loop-pos-v2";
+const CACHE_NAME = "laundry-loop-pos-v3";
 const STAFF_FALLBACKS = ["/staff?app=1", "/staff"];
 
 self.addEventListener("install", (event) => {
