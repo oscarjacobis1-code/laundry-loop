@@ -42,7 +42,7 @@ replaceOnce(
 if (!source.includes("cacheServices(loadedServices)")) {
   replaceOnce(
     '    if (orderResult.error) setMessage(orderResult.error.message);\n    setOrders((orderResult.data as Order[]) ?? []);\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    setServices(loadedServices);',
-    '    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);\n    const loadedOrders = (orderResult.data as Order[]) ?? [];\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    if (orderResult.data) { setOrders(loadedOrders); cacheOrders(loadedOrders as unknown as Record<string, unknown>[]); }\n    else if (!navigator.onLine) setOrders(readCachedOrders() as unknown as Order[]);\n    if (serviceResult.data) { setServices(loadedServices); cacheServices(loadedServices); }\n    else if (!navigator.onLine) setServices(readCachedServices() as Service[]);',
+    '    if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);\n    const loadedOrders = (orderResult.data as Order[]) ?? [];\n    const loadedServices = (serviceResult.data as Service[]) ?? [];\n    if (orderResult.data) { setCloudConfirmed(true); setOrders(loadedOrders); cacheOrders(loadedOrders as unknown as Record<string, unknown>[]); }\n    else { setCloudConfirmed(false); if (!navigator.onLine) setOrders(readCachedOrders() as unknown as Order[]); }\n    if (serviceResult.data) { setServices(loadedServices); cacheServices(loadedServices); }\n    else if (!navigator.onLine) setServices(readCachedServices() as Service[]);',
     "dashboard offline cache",
   );
 }
@@ -282,6 +282,7 @@ replaceOnce(
 '    );',
 '    const { data, error } = await Promise.race([liveOrderRequest, orderTimeout]);',
 '    if (error && appTrackingCode && /fetch|network|connection|offline|LL_ORDER_NETWORK_TIMEOUT/i.test(error.message || "")) {',
+'      setCloudConfirmed(false);',
 '      saveCurrentPosOffline(items as Array<{ service: Service; qty: number }>, appTrackingCode, appCreatedAt, true);',
 '    } else if (error) {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
