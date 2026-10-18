@@ -277,7 +277,7 @@ replaceOnce(
 
 replaceOnce(
   '<span className="live-dot">Live</span>',
-  '<span className={isOnline ? "live-dot" : "live-dot offline"}>{isOnline ? "Secure · Live" : "Offline · " + pendingOffline + " pending"}</span>',
+  '<span className={"sync-cloud " + (!isOnline ? "offline" : pendingOffline > 0 ? "syncing" : "synced")} role="status" aria-label={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : "All orders synced"} title={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : "All orders synced"}><span className="sync-cloud-icon" aria-hidden="true">☁</span>{isOnline && pendingOffline === 0 && <span className="sync-cloud-check" aria-hidden="true">✓</span>}</span>',
   "connection indicator",
 );
 
