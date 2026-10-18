@@ -35,7 +35,7 @@ if (offlineImportIndex >= 0 && offlineImportEndIndex >= 0) {
 
 replaceOnce(
   '  const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");',
-  '  const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");\n  const [pendingOffline, setPendingOffline] = useState(0);\n  const [isOnline, setIsOnline] = useState(true);',
+  '  const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");\n  const [pendingOffline, setPendingOffline] = useState(0);\n  const [isOnline, setIsOnline] = useState(true);\n  const [cloudConfirmed, setCloudConfirmed] = useState(false);',
   "offline state",
 );
 
@@ -82,6 +82,7 @@ const offlineAuthEffect = [
 '    const refreshConnection = () => {',
 '      const online = navigator.onLine;',
 '      setIsOnline(online);',
+'      if (!online) setCloudConfirmed(false);',
 '      setPendingOffline(queuedOfflineCount());',
 '    };',
 '    refreshConnection();',
@@ -124,7 +125,7 @@ const syncBlock = [
 '        p_original_transaction_at: item.createdAt,',
 '        p_express: item.express,',
 '      });',
-'      if (error) break;',
+'      if (error) { setCloudConfirmed(false); break; }',
 '      removeQueuedOfflineOrder(item.trackingCode);',
 '      synced += 1;',
 '    }',
@@ -267,17 +268,19 @@ replaceOnce(
 '    } else if (error) {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
 '      setPendingOffline(queuedOfflineCount());',
+'      setCloudConfirmed(false);',
 '      setPosMessage(`The order was not saved: ${error.message}`);',
 '    } else {',
 '      if (appTrackingCode) removeQueuedOfflineOrder(appTrackingCode);',
-'      setPendingOffline(queuedOfflineCount());'
+'      setPendingOffline(queuedOfflineCount());',
+'      setCloudConfirmed(true);'
   ].join("\n"),
   "idempotent network failure fallback",
 );
 
 replaceOnce(
   '<span className="live-dot">Live</span>',
-  '<span className={"sync-cloud " + (!isOnline ? "offline" : pendingOffline > 0 ? "syncing" : "synced")} role="status" aria-label={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : "All orders synced"} title={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : "All orders synced"}><span className="sync-cloud-icon" aria-hidden="true">☁</span>{isOnline && pendingOffline === 0 && <span className="sync-cloud-check" aria-hidden="true">✓</span>}</span>',
+  '<span className={"sync-cloud " + (!isOnline ? "offline" : pendingOffline > 0 || !cloudConfirmed ? "syncing" : "synced")} role="status" aria-label={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : !cloudConfirmed ? "Connecting to Laundry Loop cloud" : "All orders synced"} title={!isOnline ? "Offline" : pendingOffline > 0 ? "Syncing " + pendingOffline + " pending order" + (pendingOffline === 1 ? "" : "s") : !cloudConfirmed ? "Connecting to Laundry Loop cloud" : "All orders synced"}><span className="sync-cloud-icon" aria-hidden="true">☁</span>{isOnline && pendingOffline === 0 && cloudConfirmed && <span className="sync-cloud-check" aria-hidden="true">✓</span>}</span>',
   "connection indicator",
 );
 
