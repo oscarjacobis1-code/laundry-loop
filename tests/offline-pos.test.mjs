@@ -17,6 +17,7 @@ test("offline POS queue is wired into staff order creation", () => {
   assert.match(portal, /saveCurrentPosOffline/);
   assert.match(portal, /staff_sync_offline_order/);
   assert.match(portal, /sync-cloud/);
+  assert.match(portal, /cloudConfirmed/);
   assert.match(portal, /AndroidPrintBridge/);
 });
 
@@ -71,4 +72,11 @@ test("public customer order output cannot store or render active markup", () => 
   assert.match(publicApp, /escapeHtml\(error\?\.message/);
   assert.match(publicHtml, /safeHtml\(payment\.method\)/);
   assert.match(publicHtml, /safeHtml\(payment\.status\)/);
+});
+
+
+test("app shell prefers fresh code with a bounded network wait", () => {
+  assert.match(worker, /Promise\.race/);
+  assert.match(worker, /1200/);
+  assert.match(worker, /laundry-loop-pos-v4/);
 });
