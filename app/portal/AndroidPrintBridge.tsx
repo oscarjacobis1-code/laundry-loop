@@ -61,7 +61,7 @@ export default function AndroidPrintBridge() {
         if (meta.order) params.set("order", meta.order);
         if (meta.payment) params.set("payment", meta.payment);
         if (meta.paymentStatus) params.set("payment_status", meta.paymentStatus);
-        if (/^(paid|refunded)$/i.test(meta.paymentStatus) || /picked up|archived|cancelled/i.test(meta.status)) params.set("suppress_drawer", "1");
+        if (/^refunded$/i.test(meta.paymentStatus) || /picked up|archived|cancelled/i.test(meta.status)) params.set("suppress_drawer", "1");
       }
 
       if (window.LaundryLoopNative?.print) {
