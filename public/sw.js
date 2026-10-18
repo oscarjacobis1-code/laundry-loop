@@ -1,4 +1,4 @@
-const CACHE_NAME = "laundry-loop-pos-v3";
+const CACHE_NAME = "laundry-loop-pos-v4";
 const STAFF_FALLBACKS = ["/staff?app=1", "/staff"];
 
 self.addEventListener("install", (event) => {
@@ -29,27 +29,19 @@ self.addEventListener("fetch", (event) => {
           || (await caches.match("/staff?app=1"))
           || (await caches.match("/staff"));
 
-        if (cached) {
-          // Counter POS must open immediately when the internet is unavailable.
-          // Refresh the cached shell in the background instead of blocking launch.
-          event.waitUntil(
-            fetch(request)
-              .then((response) => {
-                if (!response || !response.ok) return;
-                return caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
-              })
-              .catch(() => undefined)
-          );
-          return cached;
-        }
-
         try {
-          const response = await fetch(request);
-          const copy = response.clone();
-          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
-          return response;
+          const onlineResponse = await Promise.race([
+            fetch(request),
+            new Promise((resolve) => setTimeout(() => resolve(null), 1200)),
+          ]);
+          if (onlineResponse && onlineResponse.ok) {
+            const copy = onlineResponse.clone();
+            event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
+            return onlineResponse;
+          }
+          return cached || Response.error();
         } catch {
-          return Response.error();
+          return cached || Response.error();
         }
       })());
       return;
