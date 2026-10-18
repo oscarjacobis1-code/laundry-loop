@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         val suppressDrawer = uri.getQueryParameter("suppress_drawer") == "1"
         val isFirstSuccessfulPrint = order != null && !wasPrinted(order)
         val openDrawer = mode == "receipt" && payment == "cash" && isFirstSuccessfulPrint &&
-            paymentStatus !in setOf("paid", "refunded") && !suppressDrawer
+            paymentStatus != "refunded" && !suppressDrawer
 
         status.text = "Sending directly to Rongta…"
         sendPrint(
