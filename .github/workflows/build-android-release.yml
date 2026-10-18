@@ -2,10 +2,6 @@ name: Build Signed Android Release
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/build-android-release.yml"
 
 permissions:
   contents: read
