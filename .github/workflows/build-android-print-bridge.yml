@@ -1,4 +1,5 @@
 name: Build Android Print Bridge
+# one-time POS rebuild
 
 on:
   workflow_dispatch:
