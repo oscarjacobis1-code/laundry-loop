@@ -658,8 +658,16 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const sessionId=sessionStorage.getItem("ll-access-session");
     sessionStorage.removeItem("ll-access-session");
     setPassword(""); setAttendancePassword(""); setNewPassword(""); setEmail(""); setProfile(null);
-    // Return to staff home immediately. Finish the old audit session in the background.
-    // Do not call auth.signOut here: a delayed signOut can race a rapid re-login and clear the new session.
+
+    if (portal === "admin") {
+      // Admin logout must invalidate the persisted Supabase session so reopening
+      // the portal always requires the administrator to authenticate again.
+      await supabase.auth.signOut({ scope: "local" });
+      return;
+    }
+
+    // Return staff to the home screen immediately. Finish the old audit session in the background.
+    // Staff keeps its explicit tablet login flow to avoid a delayed sign-out racing a rapid re-login.
     if(sessionId && navigator.onLine) void supabase.rpc("staff_access_logout",{p_session_id:sessionId});
   }
 
