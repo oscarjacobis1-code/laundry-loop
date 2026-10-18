@@ -659,9 +659,9 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     sessionStorage.removeItem("ll-access-session");
     setPassword(""); setAttendancePassword(""); setNewPassword(""); setEmail(""); setProfile(null);
 
-    if (portal === "admin") {
+    if (portal === "admin" || profile?.role === "admin") {
       // Admin logout must invalidate the persisted Supabase session so reopening
-      // the portal always requires the administrator to authenticate again.
+      // either the admin portal or the Android POS requires authentication again.
       await supabase.auth.signOut({ scope: "local" });
       return;
     }
