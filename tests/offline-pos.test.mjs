@@ -16,7 +16,7 @@ const publicHtml = fs.readFileSync("public/index.html", "utf8");
 test("offline POS queue is wired into staff order creation", () => {
   assert.match(portal, /saveCurrentPosOffline/);
   assert.match(portal, /staff_sync_offline_order/);
-  assert.match(portal, /Offline ·/);
+  assert.match(portal, /sync-cloud/);
   assert.match(portal, /AndroidPrintBridge/);
 });
 
