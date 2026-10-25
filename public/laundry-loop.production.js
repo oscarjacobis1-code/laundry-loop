@@ -540,12 +540,12 @@
     const name = document.getElementById('acc-name').value.trim();
     const phone = document.getElementById('acc-phone').value.trim();
     const passcode = document.getElementById('acc-pass').value;
-    const whatsappWindow = window.open('', '_blank');
     planSubmissionInFlight = true;
     let accountWasCreated = false;
     let existingAccountUsed = false;
     try {
       let token = sessionStorage.getItem(SESSION_KEY);
+      if (CURRENT_USER && token) existingAccountUsed = true;
       if (!CURRENT_USER || !token) {
         // Checkout supports both returning and first-time customers.
         // Try the supplied passcode as a login first; only create an account
@@ -594,18 +594,29 @@
       document.getElementById('step-invest-success').classList.remove('hidden');
       const successTitle = document.getElementById('invest-success-title');
       const successMessage = document.getElementById('invest-success-message');
-      if (successTitle) successTitle.textContent = accountWasCreated ? 'Account created successfully' : 'Package request submitted';
+      if (successTitle) successTitle.textContent = accountWasCreated
+        ? 'Account created successfully'
+        : existingAccountUsed
+          ? 'Existing account found'
+          : 'Package request submitted';
+      const isMonthlyPlan = activePlan.name === 'Monthly Package';
+      const requestName = isMonthlyPlan ? 'subscription' : 'package';
       if (successMessage) {
         successMessage.textContent = accountWasCreated
-          ? 'Your Laundry Loop account was created and your package request was submitted. Staff will confirm the subscription after payment is verified.'
+          ? `Your Laundry Loop account was created and your ${requestName} request was submitted. Staff can see it now and will confirm payment.`
           : existingAccountUsed
-            ? 'You were signed in to your existing account and your package request was submitted. Staff will confirm the subscription after payment is verified.'
-            : 'Your package request was submitted. Staff will confirm the subscription after payment is verified.';
+            ? `This number already belongs to an existing Laundry Loop account. You were signed in and your ${requestName} request was submitted. Staff can see it now.`
+            : `Your ${requestName} request was submitted. Staff can see it now and will confirm payment.`;
       }
-      const confirmation=`Thank you for choosing The Laundry Loop. Your subscription request ${row.tracking_code} is being processed. You will receive a message shortly confirming your active subscription.`;
-      if (whatsappWindow) whatsappWindow.location.href=`https://wa.me/${String(phone).replace(/\D/g,'').replace(/^0?([0-9]{7})$/,'592$1')}?text=${encodeURIComponent(confirmation)}`;
+      const confirmation = isMonthlyPlan
+        ? `Thank you for choosing The Laundry Loop. Your subscription request ${row.tracking_code} is being processed. We will confirm it after payment is verified.`
+        : `Thank you for choosing The Laundry Loop. Your Standard Package request ${row.tracking_code} was submitted. We will confirm payment shortly.`;
+      const whatsappButton = document.getElementById('invest-whatsapp-button');
+      if (whatsappButton) {
+        whatsappButton.href = `https://wa.me/${String(phone).replace(/\D/g,'').replace(/^0?([0-9]{7})$/,'592$1')}?text=${encodeURIComponent(confirmation)}`;
+        whatsappButton.classList.remove('hidden');
+      }
     } catch (error) {
-      if (whatsappWindow) whatsappWindow.close();
       const message = String(error?.message || '');
       alert(message || 'We could not complete the package checkout. Please try again.');
     } finally {
