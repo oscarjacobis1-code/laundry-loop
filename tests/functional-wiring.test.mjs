@@ -120,7 +120,7 @@ test("package checkout logs in returning customers before attempting signup", ()
   assert.ok(signupIndex > loginIndex, "signup only happens after login rejects the credentials");
   assert.match(checkoutSlice, /already has an account, but that passcode does not match/);
   assert.match(publicHtml, /If this number already has an account, use its existing passcode/);
-  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20260930-2/);
+  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20261025-1/);
 });
 
 test("customer account creation gives clear duplicate and success feedback", () => {
@@ -132,7 +132,7 @@ test("customer account creation gives clear duplicate and success feedback", () 
   assert.match(publicHtml, /id="account-status-message"/);
   assert.match(publicHtml, /id="invest-success-title"/);
   assert.match(publicHtml, /id="invest-success-message"/);
-  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20260930-2/);
+  assert.match(publicHtml, /laundry-loop\.production\.js\?v=20261025-1/);
 });
 
 test("subscription requests activate after payment and expose account allowance", () => {
