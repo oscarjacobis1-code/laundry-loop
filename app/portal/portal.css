@@ -296,3 +296,9 @@ td small{margin-top:4px;color:var(--muted);max-width:210px}
 .ticket-file-button{display:inline-flex!important;align-items:center;justify-content:center;width:max-content;max-width:100%;min-height:44px;padding:10px 16px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;font-weight:800}
 .ticket-file-button input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .ticket-file-button small,.ticket-upload small{color:var(--muted);overflow-wrap:anywhere}
+
+.edit-action{background:#edf4ff;color:#164d8d;border:1px solid #c8dcf5}
+.edit-action:before{background:#2f80ed}
+.edit-order-modal{width:min(620px,calc(100vw - 28px));max-height:90vh;overflow:auto}
+.edit-order-modal .package-edit-summary{display:grid;gap:4px;padding:13px;margin:8px 0;background:#f7f9fc}
+.edit-order-modal .package-edit-summary small{color:var(--muted)}
