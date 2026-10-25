@@ -1213,6 +1213,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <div className="row-actions">
 <button className="print-action" onClick={() => setSelectedOrder(order)}>Receipt</button>
 <button className="whatsapp-action" onClick={() => whatsapp(order)}>WhatsApp</button>
+{!["Picked Up (Archived)","Cancelled/Refunded"].includes(order.status) && <button className="edit-action" onClick={() => openEditOrder(order)}>Edit Order</button>}
 {order.scale_photo_path && <button onClick={() => void openPhoto(order)}>Photo</button>}
 {profile.role !== "staff" && order.status !== "Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({ order, type: order.payment?.status === "Paid" ? "refund" : "cancel" }); setOrderActionReason(""); }}>Cancel / Refund</button>}</div>
 </td>
@@ -1406,19 +1407,22 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </div>
 </div>
 <div className="panel subscription-operations">
-<div className="section-heading"><div><p className="eyebrow">Subscriptions</p><h2>Subscription control</h2></div><span className="badge">{subscriptions.filter(item=>item.subscription_status==="Pending Verification").length} new</span></div>
-<div className="subscription-filters" role="group" aria-label="Filter subscriptions">
+<div className="section-heading"><div><p className="eyebrow">Packages &amp; subscriptions</p><h2>Package control</h2></div><span className="badge">{subscriptions.filter(item=>item.package_status==="Pending Verification").length} new</span></div>
+<div className="subscription-filters" role="group" aria-label="Filter packages and subscriptions">
 {["Pending","Active","Inactive","All"].map(filter=><button type="button" key={filter} className={subscriptionFilter===filter?"active":""} onClick={()=>setSubscriptionFilter(filter)}>{filter}</button>)}
 </div>
 <div className="subscription-list">
-{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.subscription_status==="Pending Verification")||(subscriptionFilter==="Active"&&item.subscription_status==="Active")||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.subscription_status))).map(item=><article className="subscription-row" key={item.subscription_id}>
-<div><strong>{item.customer_name}</strong><small>{item.customer_phone} · {item.tracking_code}</small></div>
-<div><span className={`badge subscription-${item.subscription_status.toLowerCase().replaceAll(" ","-")}`}>{item.subscription_status}</span><small>{item.payment_method} · {item.payment_status}</small></div>
-<div><strong>{Number(item.weekly_pounds)+Number(item.extra_pounds)} lbs/week</strong><small>{item.credit_balance} credits</small></div>
-<div><strong>{item.ends_at?new Date(item.ends_at).toLocaleDateString("en-GY"):"Awaiting activation"}</strong><small>{item.starts_at?"Active period":"Payment must be verified"}</small></div>
+{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.package_status==="Pending Verification")||(subscriptionFilter==="Active"&&["Active","Purchased"].includes(item.package_status))||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.package_status))).map(item=><article className="subscription-row" key={item.record_id}>
+<div><strong>{item.customer_name}</strong><small>{item.customer_phone} · {item.tracking_code}</small><small>{item.plan_name}</small></div>
+<div><span className={`badge subscription-${item.package_status.toLowerCase().replaceAll(" ","-")}`}>{item.package_status}</span><small>{item.payment_method} · {item.payment_status}</small></div>
+<div><strong>{Number(item.included_pounds)+Number(item.extra_pounds)} lbs{item.plan_kind==="monthly"?"/week":""}</strong><small>{item.plan_kind==="standard" ? (Number(item.extra_pounds)>0 ? `${Number(item.extra_pounds)} extra lb @ GYD 200/lb` : "20 lb included") : `${item.credit_balance} credits`}</small></div>
+<div><strong>{item.ends_at?new Date(item.ends_at).toLocaleDateString("en-GY"):item.plan_kind==="standard"?"One-time package":"Awaiting activation"}</strong><small>{item.starts_at?"Active period":item.plan_kind==="standard"?"Edit order to record actual weight":"Payment must be verified"}</small></div>
+<div className="history-actions">
+<button className="edit-action" onClick={()=>{const order=orders.find(order=>order.id===item.order_id);if(order)openEditOrder(order);}}>Edit Order</button>
 <button className="whatsapp-action" onClick={()=>whatsappSubscription(item)}>WhatsApp</button>
+</div>
 </article>)}
-{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.subscription_status==="Pending Verification")||(subscriptionFilter==="Active"&&item.subscription_status==="Active")||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.subscription_status))).length===0&&<p className="empty">No {subscriptionFilter.toLowerCase()} subscriptions.</p>}
+{subscriptions.filter(item=>subscriptionFilter==="All"||(subscriptionFilter==="Pending"&&item.package_status==="Pending Verification")||(subscriptionFilter==="Active"&&["Active","Purchased"].includes(item.package_status))||(subscriptionFilter==="Inactive"&&["Expired","Cancelled"].includes(item.package_status))).length===0&&<p className="empty">No {subscriptionFilter.toLowerCase()} packages or subscriptions.</p>}
 </div>
 </div>
 </section>}
@@ -1602,10 +1606,41 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 <button className="print-action" onClick={() => printOrder("receipt")}>Print receipt</button>
 <button className="print-action" onClick={() => printOrder("tag")}>Print bag tag</button>
 <button className="whatsapp-action" onClick={() => whatsapp(selectedOrder)}>WhatsApp</button>
+{!["Picked Up (Archived)","Cancelled/Refunded"].includes(selectedOrder.status) && <button className="edit-action" onClick={() => openEditOrder(selectedOrder)}>Edit Order</button>}
 {profile.role!=="staff" && selectedOrder.status!=="Cancelled/Refunded" && <button className="danger-action" onClick={() => { setOrderAction({order:selectedOrder,type:selectedOrder.payment?.status==="Paid"?"refund":"cancel"}); setOrderActionReason(""); setSelectedOrder(null); }}>Cancel / Refund</button>}
 </div>
 
 </div>
+</div>}
+    {editOrder && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit order">
+<form className="modal-card action-modal edit-order-modal" onSubmit={saveEditedOrder}>
+<button type="button" className="modal-close" onClick={() => setEditOrder(null)}>×</button>
+<p className="eyebrow">Edit order</p>
+<h2>{editOrder.tracking_code}</h2>
+<p className="muted">{editOrder.customer_name} · {editOrder.customer_phone}</p>
+
+{editOrder.order_type==="Standard Package" ? <>
+<div className="panel package-edit-summary">
+<strong>Standard Package · GYD 5,000 includes up to 20 lb</strong>
+<small>Additional weight is GYD 200 per lb.</small>
+</div>
+<label>Actual weight (lb)<input type="number" min="0.5" max="500" step="0.5" value={editStandardWeight} onChange={e=>setEditStandardWeight(e.target.value)} required/></label>
+<div className="receipt-line"><span>Package total</span><strong>{money(5000 + Math.max(0,Number(editStandardWeight||0)-20)*200)}</strong></div>
+</> : editOrder.order_type==="Monthly Package" ? <p className="notice">The monthly allowance stays attached to the subscription. You can update the notes here; use the package controls for payment and subscription status.</p> : <>
+<label>Laundry services</label>
+{editItems.map((row,index)=><div className="service-row" key={index}>
+<select value={row.service_id} onChange={e=>setEditItems(editItems.map((item,i)=>i===index?{...item,service_id:e.target.value}:item))} required>
+<option value="">Choose service</option>{services.filter(service=>service.active&&service.category!=="Package").map(service=><option key={service.id} value={service.id}>{service.name} — {money(service.rate)}/{service.unit}</option>)}
+</select>
+<input type="number" min="0.5" max="500" step="0.5" value={row.qty} onChange={e=>setEditItems(editItems.map((item,i)=>i===index?{...item,qty:Number(e.target.value)}:item))} required/>
+<button type="button" className="danger-text" onClick={()=>editItems.length>1&&setEditItems(editItems.filter((_,i)=>i!==index))}>×</button>
+</div>)}
+<button type="button" className="secondary add-line" onClick={()=>setEditItems([...editItems,{service_id:services.find(service=>service.active&&service.category!=="Package")?.id||"",qty:1}])}>+ Add another service</button>
+</>}
+
+<label>Order notes<textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} maxLength={1000} rows={4} placeholder="Stains, special care, item count, customer instructions…"/></label>
+<button className="primary-wide" disabled={busy}>{busy?"Saving…":"Save Order Changes"}</button>
+</form>
 </div>}
     {orderAction && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Cancel or refund order">
 <form className="modal-card action-modal" onSubmit={confirmOrderAction}>
