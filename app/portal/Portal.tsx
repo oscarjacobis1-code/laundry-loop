@@ -41,7 +41,7 @@ type Inventory = {
 };
 type Alert = { id: string; requester_email: string; created_at: string; resolved_at: string | null };
 type Summary = { period_days: number; orders: number; revenue: number; average_order_value: number; repeat_customers: number; busiest_hour: number | null; average_hours_to_ready: number | null };
-type Subscription = { subscription_id:string; tracking_code:string; customer_name:string; customer_phone:string; subscription_status:string; payment_status:string; payment_method:string; weekly_pounds:number; extra_pounds:number; credit_balance:number; starts_at:string|null; ends_at:string|null; created_at:string };
+type PackageRecord = { record_id:string; order_id:string; plan_name:string; plan_kind:"standard"|"monthly"; tracking_code:string; customer_name:string; customer_phone:string; package_status:string; payment_status:string; payment_method:string; included_pounds:number; extra_pounds:number; credit_balance:number; starts_at:string|null; ends_at:string|null; created_at:string };
 type SupportTicket = { id: string; created_by: string; category: string; description: string; order_code: string | null; screenshot_path: string | null; status: "open" | "in_progress" | "resolved"; created_at: string };
 type View = "orders" | "pos" | "paper" | "inventory" | "operations" | "support" | "content" | "services" | "team" | "security";
 type DiscountMode = "amount" | "percent";
@@ -152,8 +152,12 @@ export default function Portal({ portal }: { portal: PortalKind }) {
   const [posMessage, setPosMessage] = useState("");
   const [printMode, setPrintMode] = useState<"receipt" | "tag">("receipt");
   const [siteContent, setSiteContent] = useState<SiteContent | null>(null);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] = useState<PackageRecord[]>([]);
   const [subscriptionFilter, setSubscriptionFilter] = useState("Pending");
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editItems, setEditItems] = useState<Array<{ service_id: string; qty: number }>>([]);
+  const [editNotes, setEditNotes] = useState("");
+  const [editStandardWeight, setEditStandardWeight] = useState("");
 
   const isAdmin = profile?.role === "admin";
   const canManageServices = profile?.role === "manager" || isAdmin;
@@ -212,7 +216,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
       supabase.from("service_catalog").select("id,name,category,rate,unit,active").order("category").order("name"),
       supabase.rpc("staff_inventory_summary"),
       supabase.rpc("staff_operations_summary", { p_days: summaryDays }),
-      supabase.rpc("staff_subscription_summary"),
+      supabase.rpc("staff_package_summary"),
     ]);
     if (orderResult.error && !orderResult.data) setMessage(orderResult.error.message);
     const loadedOrders = (orderResult.data as Order[]) ?? [];
@@ -237,7 +241,7 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     }
     setInventory((inventoryResult.data as Inventory[]) ?? []);
     setSummary((summaryResult.data as Summary) ?? null);
-    setSubscriptions((subscriptionResult.data as Subscription[]) ?? []);
+    setSubscriptions((subscriptionResult.data as PackageRecord[]) ?? []);
   }, [supabase]);
 
   useEffect(() => {
@@ -245,6 +249,22 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     const timer = window.setTimeout(() => void loadCompletedOrders(completedSearch), 300);
     return () => window.clearTimeout(timer);
   }, [completedSearch, loadCompletedOrders, profile, view]);
+
+  useEffect(() => {
+    if (!profile || view !== "operations" || !navigator.onLine) return;
+    let refreshTimer: number | null = null;
+    const channel = supabase
+      .channel("laundry-loop-operations-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(() => void loadDashboard(profile.role), 250);
+      })
+      .subscribe();
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadDashboard, profile, supabase, view]);
 
   const loadTickets = useCallback(async () => {
     const { data, error } = await supabase.from("staff_support_tickets")
@@ -698,6 +718,74 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     setBusy(false);
   }
 
+  function openEditOrder(order: Order) {
+    setEditOrder(order);
+    setEditNotes(order.notes || "");
+    if (order.order_type === "Standard Package") {
+      const explicitWeight = /^\d+(?:\.\d+)? lb$/i.test(order.weight_summary || "") ? Number((order.weight_summary || "").split(" ")[0]) : null;
+      const overage = order.items?.find((item) => item.label === "Package overage");
+      const inferred = explicitWeight ?? (overage ? 20 + Number(overage.qty || 0) : 20);
+      setEditStandardWeight(String(inferred));
+      setEditItems([]);
+    } else {
+      setEditStandardWeight("");
+      setEditItems((order.items || [])
+        .filter((item) => item.label !== "Package overage")
+        .map((item) => ({
+          service_id: item.service_id || services.find((service) => service.name === item.label)?.id || "",
+          qty: Number(item.qty || 1),
+        })));
+    }
+    setSelectedOrder(null);
+  }
+
+  async function saveEditedOrder(event: FormEvent) {
+    event.preventDefault();
+    if (!editOrder) return;
+    setBusy(true); setMessage("");
+
+    let payloadItems: Array<{ label: string; qty: number }> | null = null;
+    let standardWeight: number | null = null;
+
+    if (editOrder.order_type === "Standard Package") {
+      standardWeight = Number(editStandardWeight);
+      if (!Number.isFinite(standardWeight) || standardWeight <= 0 || standardWeight > 500) {
+        setMessage("Enter a valid actual package weight.");
+        setBusy(false);
+        return;
+      }
+    } else if (editOrder.order_type !== "Monthly Package") {
+      const rows = editItems
+        .map((row) => ({ service: services.find((service) => service.id === row.service_id), qty: Number(row.qty) }))
+        .filter((row) => row.service && row.qty > 0);
+      if (!rows.length) {
+        setMessage("Keep at least one service on the order.");
+        setBusy(false);
+        return;
+      }
+      payloadItems = rows.map((row) => ({ label: row.service!.name, qty: row.qty }));
+    }
+
+    const { data, error } = await supabase.rpc("staff_edit_order", {
+      p_order_id: editOrder.id,
+      p_items: payloadItems,
+      p_notes: editNotes.trim(),
+      p_standard_actual_weight: standardWeight,
+    });
+
+    if (error) {
+      setMessage(`Order could not be edited: ${error.message}`);
+    } else {
+      const updated = data as Order;
+      setEditOrder(null);
+      setOrders((current) => current.map((order) => order.id === updated.id ? updated : order));
+      setSelectedOrder(updated);
+      setMessage(`Order ${updated.tracking_code} updated.`);
+      await loadDashboard(profile?.role);
+    }
+    setBusy(false);
+  }
+
   async function submitPos(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage(""); setPosMessage("");
     if (pos.name.trim().length < 2) { setPosMessage("Enter the customer's full name."); setBusy(false); return; }
@@ -891,11 +979,15 @@ export default function Portal({ portal }: { portal: PortalKind }) {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(copy)}`, "_blank", "noopener,noreferrer");
   }
 
-  function whatsappSubscription(item: Subscription) {
-    const active = item.subscription_status === "Active";
-    const copy = active
-      ? `Welcome to The Laundry Loop, ${item.customer_name}! Your monthly subscription is active. You have ${Number(item.weekly_pounds) + Number(item.extra_pounds)} lbs available each week. Thank you for choosing The Laundry Loop.`
-      : `Thank you for choosing The Laundry Loop. Your subscription request ${item.tracking_code} is being processed. We will message you as soon as payment is verified and your subscription is active.`;
+  function whatsappSubscription(item: PackageRecord) {
+    const active = item.package_status === "Active" || item.package_status === "Purchased";
+    const copy = item.plan_kind === "standard"
+      ? active
+        ? `Your Laundry Loop Standard Package ${item.tracking_code} is confirmed. It includes 20 lbs, with additional weight charged at GYD 200/lb.`
+        : `Thank you for choosing The Laundry Loop. Your Standard Package request ${item.tracking_code} is being processed and will be confirmed after payment verification.`
+      : active
+        ? `Welcome to The Laundry Loop, ${item.customer_name}! Your monthly subscription is active. You have ${Number(item.included_pounds) + Number(item.extra_pounds)} lbs available each week. Thank you for choosing The Laundry Loop.`
+        : `Thank you for choosing The Laundry Loop. Your subscription request ${item.tracking_code} is being processed. We will message you as soon as payment is verified and your subscription is active.`;
     window.open(`https://wa.me/${phoneDigits(item.customer_phone)}?text=${encodeURIComponent(copy)}`, "_blank", "noopener,noreferrer");
   }
 
