@@ -128,7 +128,7 @@ test("customer account creation gives clear duplicate and success feedback", () 
   assert.match(production, /An account already exists for that phone number\. Log in instead\./);
   assert.match(production, /accountWasCreated = true/);
   assert.match(production, /existingAccountUsed = true/);
-  assert.match(production, /You were signed in to your existing account and your package request was submitted/);
+  assert.match(production, /This number already belongs to an existing Laundry Loop account/);
   assert.match(publicHtml, /id="account-status-message"/);
   assert.match(publicHtml, /id="invest-success-title"/);
   assert.match(publicHtml, /id="invest-success-message"/);
@@ -160,7 +160,7 @@ test("receipt and action styling use the approved wording and fills", () => {
 test("subscription confirmation provides copy and operations controls", () => {
   assert.match(publicHtml, /id="subscription-copy-button"/);
   assert.match(publicHtml, /onclick="copyCode\(document\.getElementById\('acc-backup-code'\)\.textContent, this\)"/);
-  assert.match(portal, /staff_subscription_summary/);
+  assert.match(portal, /staff_package_summary/);
   assert.match(portal, /\["Pending","Active","Inactive","All"\]/);
   assert.match(operationsMigration, /case when s\.status='Active' and s\.ends_at<=now\(\) then 'Expired'/);
 });
@@ -252,4 +252,22 @@ test("cash tender details are persisted by the staff order RPC", async () => {
 test("POS service worker cache was rotated after auth hardening", async () => {
   const worker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.match(worker, /laundry-loop-pos-v4/);
+});
+
+
+test("package checkout stays in the same page and recognizes existing accounts", () => {
+  assert.doesNotMatch(production, /const whatsappWindow = window\.open\('', '_blank'\)/);
+  assert.match(production, /Existing account found/);
+  assert.match(production, /invest-whatsapp-button/);
+  assert.match(publicHtml, /id="invest-whatsapp-button"/);
+});
+
+test("staff package view includes standard packages and secure order editing", async () => {
+  const migration = await readFile(new URL("../supabase/migrations/20261025203000_package_workflow_and_order_editing.sql", import.meta.url), "utf8");
+  assert.match(portal, /staff_package_summary/);
+  assert.match(portal, /Edit Order/);
+  assert.match(portal, /staff_edit_order/);
+  assert.match(migration, /Standard Package/);
+  assert.match(migration, /Package overage/);
+  assert.match(migration, /200/);
 });
