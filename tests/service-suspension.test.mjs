@@ -42,10 +42,16 @@ test("staff response can replace the old service-worker cached POS, without dele
   assert.doesNotMatch(proxy, /indexedDB\.deleteDatabase/);
 });
 
-test("private management portal stays accessible and shows fees only after admin login", () => {
-  assert.match(proxy, /path === "\/admin"/);
-  assert.match(admin, /serviceSuspended=\{process\.env\.LAUNDRY_SERVICE_SUSPENDED === "true"\}/);
+test("administration and staff routes both show neutral suspension notices", () => {
+  assert.match(proxy, /path === "\/admin" \|\| path\.startsWith\("\/admin\/"\)/);
+  assert.match(proxy, /new Response\(adminPage, \{ status: 200/);
+  assert.match(proxy, /"Service Temporarily Suspended"/);
+  assert.match(proxy, /"Please contact administrator for more information\."/);
+  const adminNotice = proxy.match(/const adminPage = noticeHtml\([\s\S]*?\);/)?.[0];
+  assert.ok(adminNotice);
+  assert.doesNotMatch(adminNotice, /GYD|fees|payment|development|hosting|SnapNest/i);
+  assert.match(proxy, /laundry-loop-admin-auth-v2/);
+  assert.match(admin, /<Portal portal="admin"/);
   assert.match(portal, /portal === "admin" && isAdmin && serviceSuspended/);
-  assert.match(portal, /outstanding GYD \$61,000 monthly payment/);
   assert.match(admin, /dynamic = "force-dynamic"/);
 });
