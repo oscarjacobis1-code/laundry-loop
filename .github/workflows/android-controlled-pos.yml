@@ -60,7 +60,7 @@ jobs:
           fi
           mkdir -p signing
           printf '%s' "$ANDROID_KEYSTORE_B64" | base64 --decode > signing/release.jks
-          export ANDROID_KEYSTORE_PATH="signing/release.jks"
+          export ANDROID_KEYSTORE_PATH="$PWD/signing/release.jks"
           gradle --no-daemon --stacktrace :app:assembleRelease
       - name: Upload signed APK when available
         uses: actions/upload-artifact@v4
