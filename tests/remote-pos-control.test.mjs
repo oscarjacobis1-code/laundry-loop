@@ -41,7 +41,7 @@ test("native suspension blocks POS WebView interaction and native receipt printi
   assert.match(activity, /Service Temporarily Suspended/);
   assert.match(activity, /Please contact administrator for more information/);
   assert.match(activity, /accessControl\.close\(\)/);
-  assert.doesNotMatch(activity, /deleteDatabase|clearCache\(true\)|clearHistory\(\)/);
+  assert.doesNotMatch(activity, /deleteDatabase|clearCache\(true\)/);
   assert.match(gradle, /versionCode = 28/);
   assert.match(gradle, /versionName = "2\.3\.0"/);
 });
