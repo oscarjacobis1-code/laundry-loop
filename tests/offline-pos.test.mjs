@@ -41,7 +41,7 @@ test("Android APK launches directly into the secured POS with internal printing"
   assert.match(manifest, /android:usesCleartextTraffic="false"/);
   assert.match(manifest, /android:allowBackup="false"/);
   assert.doesNotMatch(manifest, /android:scheme="laundryloop-print"/);
-  assert.match(posActivity, /LaundryLoopPOS\/2\.2/);
+  assert.match(posActivity, /LaundryLoopPOS\/2\.3/);
   assert.doesNotMatch(posActivity, /FLAG_SECURE/);
   assert.doesNotMatch(posActivity, /createConfirmDeviceCredentialIntent/);
   assert.match(posActivity, /override fun onCreate[\s\S]*initializePos\(\)/);
