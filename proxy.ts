@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 // in Netlify's server-side environment, followed by a new deploy.
 const SERVICE_FLAG = "LAUNDRY_SERVICE_SUSPENDED";
 const AUTH_STORAGE_KEY = "laundry-loop-staff-auth-v2";
+const ADMIN_AUTH_STORAGE_KEY = "laundry-loop-admin-auth-v2";
 
 function noticeHtml(title: string, heading: string, message: string, staff: boolean): string {
   const style = [
@@ -15,10 +16,10 @@ function noticeHtml(title: string, heading: string, message: string, staff: bool
     "p{font-size:1rem;line-height:1.6;color:#5b6676;margin:0}",
     "@media(max-width:480px){main{padding:36px 24px}}",
   ].join("");
-  // Clear only the persisted *online* staff session, not offline orders,
-  // attendance, service catalog, receipts, or cached customer data.
+  // Clear persisted online portal sessions only. Keep offline orders,
+  // attendance, service catalog, receipts, and cached customer data.
   const logout = staff
-    ? '<script>try{localStorage.removeItem("'+AUTH_STORAGE_KEY+'");sessionStorage.removeItem("'+AUTH_STORAGE_KEY+'")}catch(_){}</script>'
+    ? '<script>try{for(const key of ["'+AUTH_STORAGE_KEY+'","'+ADMIN_AUTH_STORAGE_KEY+'"]){localStorage.removeItem(key);sessionStorage.removeItem(key)}}catch(_){}</script>'
     : "";
   return [
     '<!doctype html><html lang="en"><head><meta charset="utf-8">',
@@ -44,6 +45,13 @@ const staffPage = noticeHtml(
   true,
 );
 
+const adminPage = noticeHtml(
+  "Service Temporarily Suspended",
+  "Service Temporarily Suspended",
+  "Please contact administrator for more information.",
+  true,
+);
+
 const NO_CACHE_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store, max-age=0, must-revalidate",
@@ -55,16 +63,19 @@ export function proxy(request: NextRequest) {
   if (process.env[SERVICE_FLAG] !== "true") return NextResponse.next();
 
   const path = request.nextUrl.pathname;
-  // Management remains accessible so administrators can view the reason and
-  // SnapNest can restore service. Next.js and static resources must still load.
+  // All visitor, staff, and administration pages are suspended.
+  // Framework assets and service endpoints remain available; no records are removed.
   if (
-    path === "/admin" || path.startsWith("/admin/") ||
     path.startsWith("/_next/") || path.startsWith("/api/") ||
     path.startsWith("/_netlify/") || path.startsWith("/.well-known/") ||
     path === "/sw.js" ||
     (path !== "/" && /\.(?!html$)[a-z0-9]+$/i.test(path))
   ) {
     return NextResponse.next();
+  }
+
+  if (path === "/admin" || path.startsWith("/admin/")) {
+    return new Response(adminPage, { status: 200, headers: NO_CACHE_HEADERS });
   }
 
   if (path === "/staff" || path.startsWith("/staff/")) {
