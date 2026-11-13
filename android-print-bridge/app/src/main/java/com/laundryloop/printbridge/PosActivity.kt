@@ -3,8 +3,11 @@ package com.laundryloop.printbridge
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -13,6 +16,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -23,10 +28,27 @@ class PosActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var initialized = false
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    private lateinit var accessControl: RemotePosAccess
+    private lateinit var accessOverlay: LinearLayout
+    private lateinit var accessTitle: TextView
+    private lateinit var accessDescription: TextView
+    private var accessState = RemotePosAccess.State.CONNECTION_REQUIRED
+    private var posLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initializePos()
+        accessControl = RemotePosAccess(this) { applyAccessState(it) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::accessControl.isInitialized) accessControl.start()
+    }
+
+    override fun onPause() {
+        if (::accessControl.isInitialized) accessControl.stop()
+        super.onPause()
     }
 
     @Suppress("DEPRECATION")
@@ -69,7 +91,7 @@ class PosActivity : AppCompatActivity() {
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             setSupportMultipleWindows(false)
-            userAgentString = "$userAgentString LaundryLoopPOS/2.2"
+            userAgentString = "$userAgentString LaundryLoopPOS/2.3"
         }
 
         webView.addJavascriptInterface(NativePrintBridge(), "LaundryLoopNative")
@@ -120,22 +142,106 @@ class PosActivity : AppCompatActivity() {
             addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
-        setContentView(root)
+        val screen = FrameLayout(this)
+        screen.addView(root, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val noticeCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            val spacing = (20 * density).toInt()
+            setPadding(spacing, spacing, spacing, spacing)
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadius = 14 * density
+            }
+            elevation = 3 * density
+        }
+        accessTitle = TextView(this).apply {
+            text = "Verifying system access"
+            textSize = 22f
+            setTextColor(Color.rgb(23, 32, 51))
+            gravity = Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        accessDescription = TextView(this).apply {
+            text = "Connecting to the system."
+            textSize = 15f
+            setTextColor(Color.rgb(91, 102, 118))
+            gravity = Gravity.CENTER
+            setPadding(0, (12 * density).toInt(), 0, (22 * density).toInt())
+        }
+        val retryButton = Button(this).apply {
+            text = "Check again"
+            setOnClickListener {
+                if (::accessControl.isInitialized) accessControl.retryNow()
+            }
+        }
+        noticeCard.addView(accessTitle)
+        noticeCard.addView(accessDescription)
+        noticeCard.addView(retryButton)
 
-        webView.loadUrl("https://$TRUSTED_HOST/staff?app=1")
+        accessOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.rgb(246, 247, 249))
+            isClickable = true
+            isFocusable = true
+            setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
+            addView(noticeCard, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        screen.addView(accessOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(screen)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else finish()
+                if (accessState == RemotePosAccess.State.ALLOWED && ::webView.isInitialized && webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    finish()
+                }
             }
         })
+    }
+
+    private fun applyAccessState(state: RemotePosAccess.State) {
+        if (!::accessOverlay.isInitialized) return
+        val previous = accessState
+        accessState = state
+        if (state == RemotePosAccess.State.ALLOWED) {
+            accessOverlay.visibility = View.GONE
+            webView.onResume()
+            webView.resumeTimers()
+            if (!posLoaded) {
+                posLoaded = true
+                webView.loadUrl("https://$TRUSTED_HOST/staff?app=1")
+            } else if (previous != RemotePosAccess.State.ALLOWED) {
+                webView.reload()
+            }
+            return
+        }
+
+        accessOverlay.visibility = View.VISIBLE
+        webView.onPause()
+        webView.pauseTimers()
+        if (state == RemotePosAccess.State.SUSPENDED) {
+            accessTitle.text = "Service Temporarily Suspended"
+            accessDescription.text = "Please contact administrator for more information."
+        } else {
+            accessTitle.text = "Connection Required"
+            accessDescription.text = "Connect to the internet to verify POS access. Saved orders remain on this tablet."
+        }
     }
 
     inner class NativePrintBridge {
         @JavascriptInterface
         fun openPrinterSettings() {
             runOnUiThread {
-                if (!::webView.isInitialized) return@runOnUiThread
+                if (!::webView.isInitialized || accessState != RemotePosAccess.State.ALLOWED) return@runOnUiThread
                 val current = Uri.parse(webView.url ?: return@runOnUiThread)
                 if (current.scheme != "https" || current.host != TRUSTED_HOST) return@runOnUiThread
                 startActivity(Intent(this@PosActivity, MainActivity::class.java))
@@ -145,7 +251,7 @@ class PosActivity : AppCompatActivity() {
         @JavascriptInterface
         fun print(payload: String) {
             runOnUiThread {
-                if (!::webView.isInitialized) return@runOnUiThread
+                if (!::webView.isInitialized || accessState != RemotePosAccess.State.ALLOWED) return@runOnUiThread
                 val current = Uri.parse(webView.url ?: return@runOnUiThread)
                 if (current.scheme != "https" || current.host != TRUSTED_HOST) return@runOnUiThread
 
@@ -176,6 +282,7 @@ class PosActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (::accessControl.isInitialized) accessControl.close()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface("LaundryLoopNative")
             webView.apply {
