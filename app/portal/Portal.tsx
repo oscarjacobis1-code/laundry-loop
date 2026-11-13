@@ -101,7 +101,7 @@ async function functionFailure(
   );
 }
 
-export default function Portal({ portal }: { portal: PortalKind }) {
+export default function Portal({ portal, serviceSuspended = false }: { portal: PortalKind; serviceSuspended?: boolean }) {
   const supabase = useMemo(() => createPortalSupabase(portal), [portal]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState("");
@@ -1091,6 +1091,12 @@ export default function Portal({ portal }: { portal: PortalKind }) {
 </div>
     </aside>
     <section className="ops-main">
+      {portal === "admin" && isAdmin && serviceSuspended && (
+        <div role="status" className="notice" style={{ margin: "14px 16px", padding: "16px 18px", border: "1px solid #ebca8d", borderRadius: 10, background: "#fff8e9", color: "#4c3518", lineHeight: 1.55 }}>
+          <strong>Service temporarily suspended.</strong>{" "}
+          The outstanding GYD $61,000 monthly payment covers product development costs and hosting services, including the website and POS. Please contact SnapNest Solutions to arrange restoration.
+        </div>
+      )}
       <header className="ops-topbar">
 <button className="menu-button" onClick={() => { setSidebarCollapsed(false); setMenuOpen(!menuOpen); }} aria-label={menuOpen ? "Close dashboard menu" : "Open dashboard menu"}>☰</button>
 <div>
